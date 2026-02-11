@@ -9,7 +9,6 @@ from core import (
     Drift,
 )  # Full dependency resolution
 
-
 # =============================================================================
 # 1. OBSERVATION — The ONLY information exposed to the Optimizer
 # =============================================================================

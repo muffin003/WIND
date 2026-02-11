@@ -4,7 +4,6 @@ import numpy as np
 from core import DynamicEnvironment, Landscape
 from oracle import Observation
 
-
 # =============================================================================
 # 1. BASE METRIC INTERFACE (Backward Compatible + Optional rho)
 # =============================================================================

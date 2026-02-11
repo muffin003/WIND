@@ -2,25 +2,26 @@
 ![CI: Tests](https://github.com/muffin003/Stochastic-Optimization-Benchmark/actions/workflows/test.yml/badge.svg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Ниже представлено полное техническое руководство (README) по запуску и настройке сценариев бенчмарка **ST-HRD**.
+Below is a complete technical guide (README) for running and configuring **ST-HRD benchmark scenarios**.
 
-Этот документ предназначен для исследователей, желающих протестировать свои алгоритмы оптимизации.
+This document is intended for researchers who want to test their optimization algorithms.
 
 ---
 
-# 📘 Руководство по запуску сценариев ST-HRD
+# 📘 Guide to Running ST-HRD Scenarios
 
-**ST-HRD (Stochastic Tracking under Hölder Regularity & Drift)** — это модульный бенчмарк, управляемый через конфигурационные словари. Вам не нужно менять исходный код среды, чтобы переключиться с тестирования на Гауссовом шуме на тестирование функции Розенброка. Достаточно изменить параметры конфигурации `cfg`.
+**ST-HRD (Stochastic Tracking under Hölder Regularity & Drift)** is a modular benchmark controlled via configuration dictionaries. You don’t need to modify the environment source code to switch from Gaussian-noise testing to testing on the Rosenbrock function — simply change the `cfg` configuration parameters.
 
-## 🛠 1. Установка и Зависимости
+## 🛠 1. Installation and Dependencies
 
-Код написан на Python 3.7+. Для работы требуются следующие библиотеки:
+The code is written for Python 3.7+. The following libraries are required:
 
 ```bash
 pip install numpy matplotlib seaborn pandas scipy tqdm
 ```
 
-Если вы работаете в **Google Colab**, добавьте в начало ноутбука:
+If you are working in **Google Colab**, add this at the start of your notebook:
+
 ```python
 %matplotlib inline
 import warnings
@@ -29,39 +30,39 @@ warnings.filterwarnings("ignore")
 
 ---
 
-## ⚙️ 2. Панель управления (Config Dictionary)
+## ⚙️ 2. Control Panel (Config Dictionary)
 
-Сердцем любого сценария является словарь конфигурации. Он определяет физику мира, в который помещается алгоритм.
+The core of any scenario is the configuration dictionary. It defines the “physics” of the world in which the algorithm operates.
 
-| Параметр | Тип | Диапазон | Описание |
+| Parameter | Type | Range | Description |
 | :--- | :--- | :--- | :--- |
-| **`dim`** | `int` | $2 \dots 100+$ | Размерность пространства поиска ($d$). |
-| **`rho`** | `float` | $0.05 \dots 1.0$ | Показатель Гёльдера. <br>• `0.1`: Острая игла (сложно). <br>• `1.0`: Гладкая чаша (стандарт). |
-| **`drift_speed`** | `float` | $0.0 \dots 0.1$ | Скорость смещения оптимума ($A$). <br>• `0.0`: Стационарная задача. <br>• `0.1`: Очень быстрый дрейф. |
-| **`noise_type`** | `str` | `'gaussian'`, `'pareto'` | Тип распределения шума градиента. |
-| **`noise_scale`** | `float` | $0.0 \dots 3.0$ | Множитель силы шума. |
-| **`geometry`** | `str` | `'ideal'`, `'distorted'`, `'rosenbrock'` | Топология функции. |
-| **`condition_number`** | `float` | $1.0 \dots 1000.0$ | Число обусловленности (только для `'distorted'`). Степень вытянутости оврага. |
+| **`dim`** | `int` | $2 \dots 100+$ | Dimension of the search space ($d$). |
+| **`rho`** | `float` | $0.05 \dots 1.0$ | Hölder exponent. <br>• `0.1`: Sharp needle (hard). <br>• `1.0`: Smooth bowl (standard). |
+| **`drift_speed`** | `float` | $0.0 \dots 0.1$ | Speed of optimum drift ($A$). <br>• `0.0`: Stationary problem. <br>• `0.1`: Very fast drift. |
+| **`noise_type`** | `str` | `'gaussian'`, `'pareto'` | Gradient noise distribution type. |
+| **`noise_scale`** | `float` | $0.0 \dots 3.0$ | Noise strength multiplier. |
+| **`geometry`** | `str` | `'ideal'`, `'distorted'`, `'rosenbrock'` | Function topology. |
+| **`condition_number`** | `float` | $1.0 \dots 1000.0$ | Condition number (only for `'distorted'`). Valley elongation level. |
 
 ---
 
-## 🚀 3. Запуск Сценариев
+## 🚀 3. Running Scenarios
 
-Ниже приведены готовые шаблоны кода для 5 основных типов исследований.
+Below are ready-to-use templates for five major research scenario types.
 
-### Сценарий A: Топология Устойчивости (Mapping Landscape)
-**Цель:** Построить 3D-поверхность и тепловую карту, показывающую, при каких сочетаниях гладкости ($\rho$) и скорости дрейфа ($A$) алгоритм способен удерживать цель.
+### Scenario A: Stability Topology (Mapping Landscape)
+
+**Goal:** Build a 3D surface and heatmap showing under which combinations of smoothness ($\rho$) and drift speed ($A$) the algorithm can track the target.
 
 ```python
-# 1. Определяем сетку исследования
-rho_grid = [0.2, 0.6, 1.0]       # Можно сделать гуще: np.arange(0.1, 1.1, 0.1)
+# 1. Define research grid
+rho_grid = [0.2, 0.6, 1.0]
 drift_grid = [0.0, 0.05, 0.10]
 
 results = []
 
 for d in drift_grid:
     for r in rho_grid:
-        # Конфигурация для текущей точки сетки
         cfg = {
             'dim': 2, 
             'rho': r, 
@@ -71,10 +72,8 @@ for d in drift_grid:
             'geometry': 'ideal'
         }
         
-        # 1. Авто-тюнинг (Критически важно перенастраивать для каждого rho!)
         best_hp = tuner.tune(cfg)
         
-        # 2. Запуск (min_runs можно снизить для скорости построения карты)
         errors, success, traj = run_adaptive_experiment(
             MyOptimizer, best_hp, cfg, min_runs=30, tol=0.15
         )
@@ -85,20 +84,22 @@ for d in drift_grid:
         })
 ```
 
-### Сценарий B: Стресс-тест "Тяжелые хвосты" (Pareto Noise)
-**Цель:** Проверить робастность алгоритма к редким, но гигантским выбросам градиента (распределение Парето, $\alpha=2.5$).
+---
+
+### Scenario B: Heavy-Tail Stress Test (Pareto Noise)
+
+**Goal:** Test robustness to rare but extremely large gradient outliers (Pareto distribution, $\alpha=2.5$).
 
 ```python
 cfg_pareto = {
     'dim': 2,
-    'rho': 0.5,              # Средняя гладкость
-    'drift_speed': 0.02,     # Небольшой дрейф
-    'noise_type': 'pareto',  # <--- ВКЛЮЧЕНИЕ ТЯЖЕЛЫХ ХВОСТОВ
-    'noise_scale': 1.0,      # Высокий уровень шума
+    'rho': 0.5,
+    'drift_speed': 0.02,
+    'noise_type': 'pareto',
+    'noise_scale': 1.0,
     'geometry': 'ideal'
 }
 
-# Требует строгой статистики (tol=0.05), так как дисперсия огромная
 best_hp = tuner.tune(cfg_pareto)
 errs, succ, _ = run_adaptive_experiment(
     MyOptimizer, best_hp, cfg_pareto, min_runs=100, max_runs=1000, tol=0.05
@@ -107,43 +108,52 @@ errs, succ, _ = run_adaptive_experiment(
 print(f"Pareto Stability: {succ:.1%}")
 ```
 
-### Сценарий C: Геометрический ад (Ill-Conditioned Valley)
-**Цель:** Проверить способность алгоритма спускаться по узкому, вращающемуся оврагу без осцилляций.
+---
+
+### Scenario C: Geometric Hell (Ill-Conditioned Valley)
+
+**Goal:** Test whether the algorithm can descend a narrow rotating valley without oscillations.
 
 ```python
 cfg_valley = {
     'dim': 2,
-    'rho': 1.0,                  # Обычно тестируют на квадратичных функциях
+    'rho': 1.0,
     'drift_speed': 0.02,
     'noise_type': 'gaussian',
-    'noise_scale': 0.1,          # Шум поменьше, так как задача и так сложная
-    'geometry': 'distorted',     # <--- ВКЛЮЧЕНИЕ ИСКАЖЕНИЯ
-    'condition_number': 100.0    # <--- Степень вытянутости (100:1)
+    'noise_scale': 0.1,
+    'geometry': 'distorted',
+    'condition_number': 100.0
 }
 
 best_hp = tuner.tune(cfg_valley)
 errs, succ, _ = run_adaptive_experiment(MyOptimizer, best_hp, cfg_valley)
 ```
 
-### Сценарий D: Функция Розенброка (Tracking on Rosenbrock)
-**Цель:** Проверка на классической невыпуклой функции ("банан"), адаптированной под задачу дрейфа.
+---
+
+### Scenario D: Rosenbrock Function (Tracking on Rosenbrock)
+
+**Goal:** Test on the classic non-convex “banana” function adapted to drift tracking.
 
 ```python
 cfg_rosen = {
     'dim': 2,
-    'rho': 1.0,                  # Игнорируется формулой Розенброка, но нужен для API
-    'drift_speed': 0.01,         # Дрейф должен быть медленным, задача очень сложная
+    'rho': 1.0,
+    'drift_speed': 0.01,
     'noise_type': 'gaussian',
     'noise_scale': 0.1,
-    'geometry': 'rosenbrock'     # <--- ВКЛЮЧЕНИЕ РОЗЕНБРОКА
+    'geometry': 'rosenbrock'
 }
 
 best_hp = tuner.tune(cfg_rosen)
 errs, succ, traj = run_adaptive_experiment(MyOptimizer, best_hp, cfg_rosen)
 ```
 
-### Сценарий E: Масштабируемость (High Dimensions)
-**Цель:** Оценить деградацию качества при росте размерности задачи $D$.
+---
+
+### Scenario E: Scalability (High Dimensions)
+
+**Goal:** Evaluate performance degradation as dimensionality $D$ grows.
 
 ```python
 dims = [2, 10, 50, 100]
@@ -151,7 +161,7 @@ results_dim = []
 
 for d in dims:
     cfg_dim = {
-        'dim': d,                # <--- МАСШТАБИРОВАНИЕ
+        'dim': d,
         'rho': 0.5,
         'drift_speed': 0.05,
         'noise_type': 'gaussian',
@@ -165,42 +175,46 @@ for d in dims:
 
 ---
 
-## 📥 4. Как подключить свой алгоритм
+## 📥 4. Adding Your Own Algorithm
 
-Чтобы протестировать ваш собственный метод, создайте класс, наследуемый от `BaseOptimizer`.
+To test your method, create a class inheriting from `BaseOptimizer`.
 
 ```python
 class MyCustomOptimizer(BaseOptimizer):
     def step(self, x, oracle_data):
         """
-        x: np.array - Текущие координаты
-        oracle_data: dict - {'value': float, 'grad': np.array}
+        x: np.array — current coordinates
+        oracle_data: dict — {'value': float, 'grad': np.array}
         """
         
-        # 1. Распаковка данных
         grad = oracle_data.get('grad')
-        
-        # 2. Доступ к гиперпараметрам (определяются в tuner)
         lr = self.hp.get('lr', 0.01)
         
-        # 3. Ваша логика обновления
-        # (Например, простой градиентный спуск)
         x_new = x - lr * grad
-        
         return x_new
 ```
 
-Затем передайте этот класс в `HyperTuner` и `run_adaptive_experiment`.
+Then pass this class to `HyperTuner` and `run_adaptive_experiment`.
 
 ---
 
-## 📊 5. Чтение отчетов (Visualizer)
+## 📊 5. Reading Reports (Visualizer)
 
-Класс `BenchmarkVisualizer` генерирует дашборд. Как читать графики:
+The `BenchmarkVisualizer` class generates a dashboard. How to interpret plots:
 
-1.  **3D Error Topology:** Если поверхность резко уходит вверх в левом верхнем углу (малое $\rho$, высокий дрейф) — это нормально. Если она растет везде — алгоритм плох.
-2.  **Robustness Radar:** Чем шире площадь многоугольника, тем универсальнее алгоритм.
-    *   Смещение к "Pareto" -> Алгоритм устойчив к выбросам.
-    *   Смещение к "Valley" -> Алгоритм хорошо работает с матрицами пред-обуславливания (Momentum/Adam).
-3.  **Degradation Curve:** Идеальный график — горизонтальная прямая. Реальный — пологий рост. Экспоненциальный рост означает, что алгоритм не подходит для Deep Learning (где `cond` > 1000).
-4.  **LLN Convergence:** Линия среднего должна выйти на "плато". Если в конце графика она все еще сильно колеблется, результатам верить нельзя (увеличьте `max_runs`).
+1. **3D Error Topology:**  
+   If the surface rises sharply at low $\rho$ and high drift — normal.  
+   If it rises everywhere — the algorithm is poor.
+
+2. **Robustness Radar:**  
+   Larger polygon area = more universal algorithm.  
+   Shift toward “Pareto” → robust to outliers.  
+   Shift toward “Valley” → handles preconditioning well (Momentum/Adam).
+
+3. **Degradation Curve:**  
+   Ideal = flat line. Realistic = gentle increase.  
+   Exponential growth → unsuitable for deep learning (`cond` > 1000).
+
+4. **LLN Convergence:**  
+   Mean curve should plateau. Continued oscillations → unreliable results  
+   (increase `max_runs`).

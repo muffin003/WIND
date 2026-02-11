@@ -23,7 +23,6 @@ from plotly.subplots import make_subplots
 
 from benchmark import ExperimentResult  # Type hinting
 
-
 # =============================================================================
 # 1. METRIC VISUALIZER (Temporal Dynamics)
 # =============================================================================
