@@ -41,6 +41,16 @@ class OptimizerProtocol(Protocol):
 # ============================================================================
 # OPTIMIZER MARKER (Full reproducibility signature)
 # ============================================================================
+def _estimate_memory(class_name: str) -> str:
+    """Heuristic asymptotic memory class from the optimizer class name."""
+    cn = class_name.lower()
+    if any(x in cn for x in ["adam", "sgd", "momentum", "nesterov"]):
+        return "O(d)"
+    if "cma" in cn or "evolution" in cn:
+        return "O(d²)"
+    return "unknown"
+
+
 @dataclass
 class OptimizerInfo:
     """
@@ -91,6 +101,31 @@ class OptimizerInfo:
             except Exception:
                 # Skip attributes that cannot be safely accessed
                 continue
+
+        # Prefer an explicit declaration from the optimizer; fall back to heuristics.
+        explicit = getattr(optimizer, "oracle_type", None)
+        if isinstance(explicit, str) and explicit in (
+            "first-order",
+            "zero-order",
+            "hybrid",
+        ):
+            oracle_type = explicit
+            sig = inspect.signature(optimizer.step)  # kept for downstream use
+            params = list(sig.parameters.values())
+            return cls(
+                name=name,
+                class_name=optimizer.__class__.__name__,
+                module=optimizer.__class__.__module__,
+                hyperparameters=hyperparams,
+                oracle_type=oracle_type,
+                query_cost_per_step=(
+                    2
+                    if oracle_type == "zero-order"
+                    and ("SPSA" in optimizer.__class__.__name__)
+                    else 1
+                ),
+                memory_complexity=_estimate_memory(optimizer.__class__.__name__),
+            )
 
         # Detect oracle type from step() signature
         oracle_type = "unknown"
@@ -230,11 +265,14 @@ class EnvironmentConfig:
         noise_type = "none"
         noise_params = {}
 
-        # Try to get noise from environment's oracle reference
-        if hasattr(env, "_oracle") and env._oracle is not None:
-            oracle = env._oracle
-            if hasattr(oracle, "value_noise") and oracle.value_noise is not None:
-                noise_obj = oracle.value_noise
+        # Try to get noise from environment's registered oracle reference
+        oracle = getattr(env, "_registered_oracle", None)
+        if oracle is not None:
+            # Prefer value noise; fall back to gradient noise if value noise absent
+            noise_obj = getattr(oracle, "value_noise", None) or getattr(
+                oracle, "grad_noise", None
+            )
+            if noise_obj is not None:
                 noise_type = noise_obj.__class__.__name__
                 noise_attrs = ["sigma", "alpha", "scale", "phi", "p", "lam"]
                 for attr in noise_attrs:
@@ -786,12 +824,75 @@ class BatchRunner:
                 record_trajectory=self.record_trajectory,
                 tail_fraction=self.tail_fraction,
             )
-            result = runner.run(
-                optimizer, T=T, x0=np.random.randn(env.dim) * 0.1, seed=seed
-            )
+            x0 = np.random.default_rng(seed).normal(0.0, 0.1, size=env.dim)
+            result = runner.run(optimizer, T=T, x0=x0, seed=seed)
 
             results.append(result)
             print(f"DONE (error={result.final_metrics.get('error_l2', -1):.3f})")
+
+        return results
+
+    @staticmethod
+    def ci95(values: List[float]) -> Tuple[float, float]:
+        """Return (mean, half-width of the 95% confidence interval) via normal approx."""
+        arr = np.asarray(values, dtype=float)
+        n = len(arr)
+        mean = float(np.mean(arr)) if n > 0 else float("nan")
+        if n < 2:
+            return mean, float("inf")
+        std = float(np.std(arr, ddof=1))
+        return mean, 1.96 * std / np.sqrt(n)
+
+    def run_adaptive(
+        self,
+        optimizer_factory: callable,
+        T: int = 500,
+        min_runs: int = 10,
+        max_runs: int = 1000,
+        tol: float = 0.05,
+        metric_key: str = "error_l2",
+        base_seed: int = 0,
+        **env_kwargs,
+    ) -> List[ExperimentResult]:
+        """
+        Run additional seeds until the 95% CI relative half-width of `metric_key`
+        drops below `tol` (Table 5 note), bounded by [min_runs, max_runs].
+
+        Returns the list of ExperimentResult collected so far.
+        """
+        if min_runs < 2:
+            raise ValueError("min_runs must be >= 2 for a confidence interval")
+        if max_runs < min_runs:
+            raise ValueError("max_runs must be >= min_runs")
+
+        results: List[ExperimentResult] = []
+        seed = base_seed
+        while len(results) < max_runs:
+            env = self.environment_factory(**env_kwargs)
+            oracle = self.oracle_factory(env)
+            metrics = self.metric_factory()
+            optimizer = optimizer_factory()
+            runner = BenchmarkRunner(
+                env,
+                oracle,
+                metrics,
+                record_trajectory=self.record_trajectory,
+                tail_fraction=self.tail_fraction,
+            )
+            x0 = np.random.default_rng(seed).normal(0.0, 0.1, size=env.dim)
+            results.append(runner.run(optimizer, T=T, x0=x0, seed=seed))
+            seed += 1
+
+            if len(results) >= min_runs:
+                vals = [
+                    r.final_metrics[metric_key]
+                    for r in results
+                    if metric_key in r.final_metrics
+                ]
+                mean, half = self.ci95(vals)
+                rel = half / (abs(mean) + 1e-12)
+                if rel < tol:
+                    break
 
         return results
 
@@ -838,9 +939,7 @@ class BatchRunner:
                 "seeds": [r.metadata.get("seed") for r in results],
                 "dimension": results[0].environment_config.dim,
                 "drift_type": results[0].environment_config.drift_type,
-                "drift_speed_rho": results[0].environment_config.drift_parameters.get(
-                    "rho", 0.0
-                ),
+                "drift_parameters": results[0].environment_config.drift_parameters,
                 "timestamp": datetime.datetime.now().isoformat(),
             },
             "algorithm_name": algorithm_name,

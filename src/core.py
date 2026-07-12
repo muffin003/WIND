@@ -13,6 +13,8 @@ from typing import Optional, Dict, Any, Tuple, List
 import numpy as np
 from dataclasses import dataclass
 
+from .manifold import cayley_orthogonal, project_to_stiefel
+
 # =============================================================================
 # 1. DRIFT MODELS (Dynamics of theta_t)
 # =============================================================================
@@ -102,6 +104,9 @@ class RandomWalkDrift(Drift):
         self.sigma = sigma
         self.sparsity = sparsity
         self.rng = np.random.default_rng(seed)
+        # Snapshot initial RNG state so reset() restores the exact sequence
+        # (works even when seed is None).
+        self._rng_state = self.rng.bit_generator.state
 
     def step(
         self, theta: np.ndarray, t: int, action: Optional[np.ndarray] = None
@@ -117,7 +122,7 @@ class RandomWalkDrift(Drift):
         return theta + noise
 
     def reset(self) -> None:
-        pass
+        self.rng.bit_generator.state = self._rng_state
 
 
 class CyclicDrift(Drift):
@@ -128,6 +133,8 @@ class CyclicDrift(Drift):
     """
 
     def __init__(self, amplitude: float, period: int, center: np.ndarray):
+        if period <= 0:
+            raise ValueError("period must be > 0")
         self.amplitude = amplitude
         self.period = period
         self.center = np.array(center)
@@ -155,10 +162,15 @@ class JumpDrift(Drift):
     def __init__(
         self, interval: int, jump_magnitude: float, dim: int, seed: Optional[int] = None
     ):
+        if interval <= 0:
+            raise ValueError("interval must be > 0")
+        if jump_magnitude < 0:
+            raise ValueError("jump_magnitude must be >= 0")
         self.interval = interval
         self.jump_magnitude = jump_magnitude
         self.dim = dim
         self.rng = np.random.default_rng(seed)
+        self._rng_state = self.rng.bit_generator.state
 
     def step(
         self, theta: np.ndarray, t: int, action: Optional[np.ndarray] = None
@@ -173,7 +185,7 @@ class JumpDrift(Drift):
         return theta
 
     def reset(self) -> None:
-        pass
+        self.rng.bit_generator.state = self._rng_state
 
 
 class AdaptiveDrift(Drift):
@@ -190,8 +202,10 @@ class AdaptiveDrift(Drift):
     """
 
     def __init__(
-        self, alpha: float = 0.1, threshold: float = 1.0, mode: str = "pursuit"
+        self, alpha: float = 0.1, threshold: float = np.inf, mode: str = "pursuit"
     ):
+        if alpha < 0:
+            raise ValueError("alpha must be >= 0")
         self.alpha = alpha
         self.threshold = threshold
         if mode not in ["pursuit", "evasion"]:
@@ -204,23 +218,87 @@ class AdaptiveDrift(Drift):
         if action is None:
             return theta
 
-        diff = theta - action
-        dist = np.linalg.norm(diff)
+        # React only if the agent is within the (optional) threshold distance.
+        if np.linalg.norm(action - theta) > self.threshold:
+            return theta
 
-        # Only react if agent is close enough
-        if dist < self.threshold and dist > 1e-8:
-            direction = diff / dist
+        # Coordinate-wise sign of (x_t - theta_t), per Table 2.
+        s = np.sign(action - theta)
 
-            # Semantics:
-            # Evasion: Move theta in direction of (theta - x) -> Away
-            # Pursuit: Move theta in direction of (x - theta) -> Towards
-            sign = 1.0 if self.mode == "evasion" else -1.0
-            return theta + sign * self.alpha * direction
-
-        return theta
+        # Evasion (Table 2 formula): theta_{t+1} = theta_t - alpha * sign(x - theta).
+        # Pursuit: theta moves toward x, i.e. + alpha * sign(x - theta).
+        direction = s if self.mode == "pursuit" else -s
+        return theta + self.alpha * direction
 
     def reset(self) -> None:
         pass
+
+
+class SparseDrift(Drift):
+    """
+    Sparse random-walk drift (Table 2, "Sparse").
+
+    At each step exactly k coordinates — a fresh random subset S_t — receive an
+    independent Gaussian increment; the remaining coordinates stay fixed.
+    theta_{t+1}[i] = theta_t[i] + sigma * N(0, 1) for i in S_t, |S_t| = k.
+
+    Models change in only a subset of features (e.g. sparse concept drift).
+    """
+
+    def __init__(
+        self, dim: int, k: int = 1, sigma: float = 0.1, seed: Optional[int] = None
+    ):
+        if not (1 <= k <= dim):
+            raise ValueError(f"k must be in [1, dim]={dim}, got k={k}")
+        self.dim = dim
+        self.k = k
+        self.sigma = sigma
+        self.rng = np.random.default_rng(seed)
+        self._rng_state = self.rng.bit_generator.state
+
+    def step(
+        self, theta: np.ndarray, t: int, action: Optional[np.ndarray] = None
+    ) -> np.ndarray:
+        idx = self.rng.choice(self.dim, size=self.k, replace=False)
+        out = theta.copy()
+        out[idx] = out[idx] + self.rng.normal(0, self.sigma, size=self.k)
+        return out
+
+    def reset(self) -> None:
+        self.rng.bit_generator.state = self._rng_state
+
+
+class StiefelDrift(Drift):
+    """
+    Riemannian drift on the Stiefel manifold (optional add-on).
+
+    Moves the optimum Theta along Stiefel(d, r) while keeping it orthonormal:
+        Theta_{t+1} = Q_t Theta_t,  Q_t = Cayley(sigma * skew-Gaussian) (orthogonal).
+
+    Theta is stored flattened (length d*r) and reshaped to (d, r) internally.
+    Use with bounds=None (clipping would break orthonormality).
+    """
+
+    def __init__(self, d: int, r: int, sigma: float = 0.05, seed: Optional[int] = None):
+        if not (1 <= r <= d):
+            raise ValueError("Stiefel requires 1 <= r <= d")
+        self.d = d
+        self.r = r
+        self.sigma = sigma
+        self.rng = np.random.default_rng(seed)
+        self._rng_state = self.rng.bit_generator.state
+
+    def step(
+        self, theta: np.ndarray, t: int, action: Optional[np.ndarray] = None
+    ) -> np.ndarray:
+        Theta = theta.reshape(self.d, self.r)
+        A = self.rng.normal(size=(self.d, self.d)) * self.sigma
+        A = A - A.T  # skew-symmetric -> Cayley gives an orthogonal Q
+        Q = cayley_orthogonal(A)
+        return (Q @ Theta).reshape(-1)
+
+    def reset(self) -> None:
+        self.rng.bit_generator.state = self._rng_state
 
 
 # =============================================================================
@@ -258,6 +336,8 @@ class QuadraticLandscape(Landscape):
     def __init__(
         self, dim: int, condition_number: float = 1.0, seed: Optional[int] = None
     ):
+        if condition_number < 1.0:
+            raise ValueError("condition_number (kappa) must be >= 1")
         self.dim = dim
         self.kappa = condition_number
         self.rng = np.random.default_rng(seed)
@@ -291,19 +371,48 @@ class PNormLandscape(Landscape):
     Special cases: p=2 (Euclidean), p=1 (L1/Lasso-like).
     """
 
-    def __init__(self, p: float = 2.0):
+    def __init__(
+        self,
+        p: float = 2.0,
+        condition_number: float = 1.0,
+        seed: Optional[int] = None,
+    ):
         if p < 1.0:
             raise ValueError("p must be >= 1 for convexity.")
+        if condition_number < 1.0:
+            raise ValueError("condition_number (kappa) must be >= 1")
         self.p = p
+        self.kappa = float(condition_number)
+        self._seed = seed
+        # Conditioning matrix M_kappa, built lazily once the dimension is known.
+        # kappa == 1 => M = I (recovers the plain p-norm, backward compatible).
+        self._M: Optional[np.ndarray] = None
+
+    def _lazy_M(self, dim: int) -> np.ndarray:
+        if self._M is None:
+            if self.kappa == 1.0 or dim < 2:
+                self._M = np.eye(dim)
+            else:
+                rng = np.random.default_rng(self._seed)
+                H = rng.normal(size=(dim, dim))
+                Q, _ = np.linalg.qr(H)
+                # Singular values from 1 to sqrt(kappa): cond(M) = sqrt(kappa)
+                exps = np.linspace(0.0, 1.0, dim)
+                diag = np.sqrt(self.kappa**exps)
+                self._M = Q @ np.diag(diag) @ Q.T
+        return self._M
 
     def loss(self, x: np.ndarray, theta: np.ndarray) -> float:
-        diff = np.abs(x - theta)
-        return float(np.sum(diff**self.p) / self.p)
+        M = self._lazy_M(x.shape[0])
+        u = M @ (x - theta)
+        return float(np.sum(np.abs(u) ** self.p) / self.p)
 
     def grad(self, x: np.ndarray, theta: np.ndarray) -> np.ndarray:
-        diff = x - theta
-        # Gradient of (1/p)|u|^p is sign(u) * |u|^(p-1)
-        return np.sign(diff) * (np.abs(diff) ** (self.p - 1))
+        M = self._lazy_M(x.shape[0])
+        u = M @ (x - theta)
+        # d/dx (1/p)||M(x-theta)||_p^p = M^T (sign(u) |u|^(p-1))
+        g_u = np.sign(u) * (np.abs(u) ** (self.p - 1))
+        return M.T @ g_u
 
 
 class RosenbrockLandscape(Landscape):
@@ -336,18 +445,29 @@ class RosenbrockLandscape(Landscape):
 
 class MultiExtremalLandscape(Landscape):
     """
-    Gaussian Mixture Landscape with EXACT normalization guaranteeing L(theta, theta) = 0.
+    Multi-extremal (Rastrigin-type) landscape with invariants GUARANTEED by construction.
 
     Mathematical formulation:
-        f_raw(x, theta) = - sum_{j=0}^{k-1} w_j * exp(-||x - c_j||^2 / sigma^2)
-        where c_0 = theta (global minimum), c_j = theta + offset_j (local minima)
+        f(x, theta) = sum_i [ (x_i - theta_i)^2 + A * (1 - cos(2*pi*(x_i - theta_i))) ]
 
-        f(x, theta) = f_raw(x, theta) - f_raw(theta, theta)
+    where A >= 0 controls the strength of the multimodal ripple.
 
-    This guarantees:
-        ✅ f(theta, theta) = 0 (exact)
-        ✅ f(x, theta) >= 0 for all x (loss is non-negative)
-        ✅ Global minimum strictly at theta (dominant weight w_0 = 1.0)
+    This guarantees, for ANY dimension, A, and theta:
+        ✅ f(theta, theta) = 0           (exact global minimum value)
+        ✅ grad f(theta, theta) = 0      (first-order optimality holds at theta)
+        ✅ f(x, theta) >= 0 for all x, with equality iff x == theta
+        ✅ Many local minima (cosine term) — genuinely multi-extremal
+
+    NOTE: This replaces a previous Gaussian-mixture formulation whose minimum was
+    NOT at theta (its gradient at theta was nonzero for random offsets), which broke
+    the L(theta, theta) = 0 / regret invariant the benchmark relies on.
+
+    Args:
+        k_centers: Retained for API/registry compatibility (unused — the cosine
+                   term already produces multiple local minima per coordinate).
+        width:     Amplitude A of the multimodal ripple (must be >= 0). A=0 reduces
+                   to a pure quadratic bowl.
+        seed:      Retained for API/registry compatibility (function is deterministic).
     """
 
     def __init__(
@@ -355,63 +475,20 @@ class MultiExtremalLandscape(Landscape):
     ):
         if k_centers < 1:
             raise ValueError("k_centers must be >= 1")
-        self.width_sq = width**2
+        if width < 0:
+            raise ValueError("width (ripple amplitude A) must be >= 0")
         self.k = k_centers
+        self.amplitude = float(width)
         self._seed = seed
-        self.offsets = None  # Lazy initialization based on dimension
-
-    def _lazy_init(self, dim: int):
-        """Initialize offsets based on actual dimension encountered."""
-        if self.offsets is None:
-            rng = np.random.default_rng(self._seed)
-            self.offsets = np.zeros((self.k, dim))
-            if self.k > 1:
-                # Local minima offsets (random within radius ~3.0)
-                self.offsets[1:] = rng.normal(0, 2.0, size=(self.k - 1, dim))
-
-    def _raw_value(self, x: np.ndarray, theta: np.ndarray) -> float:
-        """Compute unnormalized raw value f_raw(x, theta)."""
-        centers = theta + self.offsets  # Shape: (k, dim)
-        diffs = x - centers  # Shape: (k, dim)
-        dists_sq = np.sum(diffs**2, axis=1)  # Shape: (k,)
-
-        # Weights: global minimum has weight 1.0, local minima have weight 0.3
-        weights = np.full(self.k, 0.3)
-        weights[0] = 1.0
-
-        # f_raw = -sum(w_j * exp(-||x-c_j||^2 / sigma^2))
-        terms = weights * np.exp(-dists_sq / self.width_sq)
-        return -np.sum(terms)
 
     def loss(self, x: np.ndarray, theta: np.ndarray) -> float:
-        self._lazy_init(x.shape[0])
-
-        # Compute raw values at x and at theta
-        f_raw_x = self._raw_value(x, theta)
-        f_raw_theta = self._raw_value(theta, theta)
-
-        # EXACT normalization: f(theta, theta) = 0 guaranteed
-        return float(f_raw_x - f_raw_theta)
+        u = x - theta
+        ripple = self.amplitude * (1.0 - np.cos(2.0 * np.pi * u))
+        return float(np.sum(u**2 + ripple))
 
     def grad(self, x: np.ndarray, theta: np.ndarray) -> np.ndarray:
-        self._lazy_init(x.shape[0])
-
-        centers = theta + self.offsets  # Shape: (k, dim)
-        diffs = x - centers  # Shape: (k, dim)
-        dists_sq = np.sum(diffs**2, axis=1)  # Shape: (k,)
-
-        # Weights: global minimum has weight 1.0, local minima have weight 0.3
-        weights = np.full(self.k, 0.3)
-        weights[0] = 1.0
-
-        # Gradient of -w * exp(-||x-c||^2 / sigma^2)
-        # = w * exp(-||x-c||^2 / sigma^2) * (2 / sigma^2) * (x - c)
-        exps = np.exp(-dists_sq / self.width_sq)
-        coeffs = weights * exps * (2.0 / self.width_sq)  # Shape: (k,)
-
-        # Weighted sum of difference vectors
-        grad = np.sum(coeffs[:, np.newaxis] * diffs, axis=0)  # Shape: (dim,)
-        return grad
+        u = x - theta
+        return 2.0 * u + self.amplitude * 2.0 * np.pi * np.sin(2.0 * np.pi * u)
 
 
 class RobustLandscape(Landscape):
@@ -435,6 +512,74 @@ class RobustLandscape(Landscape):
         abs_diff = np.abs(diff)
         is_small = abs_diff <= self.delta
         return np.where(is_small, diff, self.delta * np.sign(diff))
+
+
+class SimplexLandscape(Landscape):
+    """
+    Squared-Euclidean loss with the decision constrained to the probability simplex
+    (Table 3, "Simplex"):
+        L(x, theta) = ||x - theta||_2^2,   x in Delta^{d-1} = {x >= 0, sum x_i = 1}.
+
+    Global minimum at theta (assumed to lie on the simplex), with L(theta, theta)=0
+    and grad L(theta, theta)=0. The simplex constraint is NOT enforced by the loss
+    itself — the optimizer/environment must keep x on the simplex; `project` provides
+    the Euclidean projection onto Delta^{d-1} as a helper.
+    """
+
+    def loss(self, x: np.ndarray, theta: np.ndarray) -> float:
+        d = x - theta
+        return float(d @ d)
+
+    def grad(self, x: np.ndarray, theta: np.ndarray) -> np.ndarray:
+        return 2.0 * (x - theta)
+
+    @staticmethod
+    def project(v: np.ndarray) -> np.ndarray:
+        """Euclidean projection onto the probability simplex (Wang & Carreira-Perpiñán, 2013)."""
+        n = v.shape[0]
+        u = np.sort(v)[::-1]
+        css = np.cumsum(u) - 1.0
+        ind = np.arange(1, n + 1)
+        cond = u - css / ind > 0
+        rho = ind[cond][-1]
+        tau = css[rho - 1] / rho
+        return np.maximum(v - tau, 0.0)
+
+
+class StiefelLandscape(Landscape):
+    """
+    Riemannian (Stiefel) landscape — embedded squared-Frobenius loss (optional add-on):
+
+        L(X, Theta) = ||X - Theta||_F^2,   X, Theta in Stiefel(d, r),
+
+    with X, Theta stored flattened (length d*r). Global minimum at Theta with
+    L(Theta, Theta)=0 and ambient gradient 0 there. `grad` returns the AMBIENT
+    Euclidean gradient 2(X - Theta); a Riemannian optimizer projects it onto the
+    tangent space and retracts (see manifold.tangent_project / manifold.retract).
+
+    The consistent distance is the principal-angle geodesic distance
+    (metrics.StiefelGeodesicMetric), NOT the flat ||x - theta||.
+    """
+
+    def __init__(self, d: int, r: int):
+        if not (1 <= r <= d):
+            raise ValueError("Stiefel requires 1 <= r <= d")
+        self.d = d
+        self.r = r
+
+    def loss(self, x: np.ndarray, theta: np.ndarray) -> float:
+        diff = x - theta
+        return float(diff @ diff)
+
+    def grad(self, x: np.ndarray, theta: np.ndarray) -> np.ndarray:
+        return 2.0 * (x - theta)
+
+    @staticmethod
+    def random_point(d: int, r: int, seed: Optional[int] = None) -> np.ndarray:
+        """A random flattened point on Stiefel(d, r) (for initial_theta / x0)."""
+        from .manifold import random_stiefel
+
+        return random_stiefel(d, r, np.random.default_rng(seed)).reshape(-1)
 
 
 # =============================================================================
@@ -473,6 +618,10 @@ class GaussianNoise(Noise):
     def __init__(self, sigma: float, seed: Optional[int] = None):
         self.sigma = sigma
         self.rng = np.random.default_rng(seed)
+        self._rng_state = self.rng.bit_generator.state
+
+    def reset(self) -> None:
+        self.rng.bit_generator.state = self._rng_state
 
     def apply(self, signal: np.ndarray, t: int) -> np.ndarray:
         if self.sigma <= 0:
@@ -488,9 +637,15 @@ class HeavyTailedNoise(Noise):
     """
 
     def __init__(self, alpha: float, scale: float = 1.0, seed: Optional[int] = None):
+        if alpha <= 0:
+            raise ValueError("alpha (tail index) must be > 0")
         self.alpha = alpha  # Tail index (1.5 - 3.0)
         self.scale = scale
         self.rng = np.random.default_rng(seed)
+        self._rng_state = self.rng.bit_generator.state
+
+    def reset(self) -> None:
+        self.rng.bit_generator.state = self._rng_state
 
     def apply(self, signal: np.ndarray, t: int) -> np.ndarray:
         # Pareto generation: (1 - u)^(-1/alpha) - 1, random sign
@@ -514,13 +669,17 @@ class CorrelatedNoise(Noise):
     def __init__(
         self, sigma: float, phi: float = 0.8, dim: int = 1, seed: Optional[int] = None
     ):
+        if not (-1.0 < phi < 1.0):
+            raise ValueError("phi must be in (-1, 1) for a stationary AR(1) process")
         self.sigma = sigma
         self.phi = phi
         self.dim = dim
         self.rng = np.random.default_rng(seed)
+        self._rng_state = self.rng.bit_generator.state
         self._state: Optional[np.ndarray] = None
 
     def reset(self) -> None:
+        self.rng.bit_generator.state = self._rng_state
         self._state = None
 
     def apply(self, signal: np.ndarray, t: int) -> np.ndarray:
@@ -563,6 +722,10 @@ class MultiplicativeNoise(Noise):
     def __init__(self, sigma_rel: float = 0.1, seed: Optional[int] = None):
         self.sigma_rel = sigma_rel
         self.rng = np.random.default_rng(seed)
+        self._rng_state = self.rng.bit_generator.state
+
+    def reset(self) -> None:
+        self.rng.bit_generator.state = self._rng_state
 
     def apply(self, signal: np.ndarray, t: int) -> np.ndarray:
         epsilon = self.rng.normal(0, self.sigma_rel, size=signal.shape)
@@ -582,6 +745,10 @@ class SparseNoise(Noise):
         self.sigma = sigma
         self.p = p
         self.rng = np.random.default_rng(seed)
+        self._rng_state = self.rng.bit_generator.state
+
+    def reset(self) -> None:
+        self.rng.bit_generator.state = self._rng_state
 
     def apply(self, signal: np.ndarray, t: int) -> np.ndarray:
         # Mask: 1 with probability p
@@ -641,6 +808,9 @@ class DynamicEnvironment:
             self._theta = np.array(initial_theta, dtype=np.float64)
         else:
             self._theta = np.zeros(dim)
+        # Remember the construction-time start so reset() restores it (important for
+        # non-zero / on-manifold initial states, e.g. Stiefel).
+        self._initial_theta = self._theta.copy()
 
         self.t = 0
 
@@ -700,8 +870,9 @@ class DynamicEnvironment:
         self.t = 0
         if initial_theta is not None:
             self._theta = np.array(initial_theta)
+            self._initial_theta = self._theta.copy()
         else:
-            self._theta = np.zeros(self.dim)
+            self._theta = self._initial_theta.copy()
 
         self.drift.reset()
         if self._registered_oracle:
@@ -734,6 +905,8 @@ _DRIFT_REGISTRY = {
     "cyclic": CyclicDrift,
     "jump": JumpDrift,
     "adaptive": AdaptiveDrift,
+    "sparse": SparseDrift,
+    "stiefel": StiefelDrift,
 }
 
 _LANDSCAPE_REGISTRY = {
@@ -742,6 +915,8 @@ _LANDSCAPE_REGISTRY = {
     "rosenbrock": RosenbrockLandscape,
     "multiextremal": MultiExtremalLandscape,
     "robust": RobustLandscape,
+    "simplex": SimplexLandscape,
+    "stiefel": StiefelLandscape,
 }
 
 _NOISE_REGISTRY = {
@@ -801,21 +976,23 @@ def make_environment(config: Dict[str, Any], seed: int = 42) -> DynamicEnvironme
     dim = config.get("dim", 2)
 
     # Drift
-    d_conf = config.get("drift", {"type": "stationary"})
+    # Copy nested dictionaries because the factory removes the registry key.
+    # Mutating a caller's config would make a second identical build fail.
+    d_conf = dict(config.get("drift", {"type": "stationary"}))
     d_type = d_conf.pop("type")
     # Inject dependencies if needed
-    if "seed" not in d_conf and d_type in ["random_walk", "jump"]:
+    if "seed" not in d_conf and d_type in ["random_walk", "jump", "sparse"]:
         d_conf["seed"] = seed
-    if "dim" not in d_conf and d_type in ["jump"]:
+    if "dim" not in d_conf and d_type in ["jump", "sparse"]:
         d_conf["dim"] = dim
     drift = make_drift(d_type, **d_conf)
 
     # Landscape
-    l_conf = config.get("landscape", {"type": "quadratic"})
+    l_conf = dict(config.get("landscape", {"type": "quadratic"}))
     l_type = l_conf.pop("type")
     if "dim" not in l_conf and l_type in ["quadratic"]:
         l_conf["dim"] = dim
-    if "seed" not in l_conf and l_type in ["quadratic", "multiextremal"]:
+    if "seed" not in l_conf and l_type in ["quadratic", "multiextremal", "pnorm"]:
         l_conf["seed"] = seed + 1
     landscape = make_landscape(l_type, **l_conf)
 

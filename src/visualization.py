@@ -21,7 +21,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
 
-from benchmark import ExperimentResult  # Type hinting
+from .benchmark import ExperimentResult  # Type hinting
 
 # =============================================================================
 # 1. METRIC VISUALIZER (Temporal Dynamics)

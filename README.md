@@ -1,5 +1,5 @@
-![CI: Linter](https://github.com/muffin003/Stochastic-Optimization-Benchmark/actions/workflows/lint.yml/badge.svg)
-![CI: Tests](https://github.com/muffin003/Stochastic-Optimization-Benchmark/actions/workflows/test.yml/badge.svg)
+![CI: Linter](https://github.com/muffin003/WIND/actions/workflows/lint.yml/badge.svg)
+![CI: Tests](https://github.com/muffin003/WIND/actions/workflows/test.yml/badge.svg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 # WIND Benchmark

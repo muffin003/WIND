@@ -1,0 +1,9 @@
+{
+  "output_dir": "results_lyapunov",
+  "seeds": [42, 43, 44, 45, 46],
+  "steps": 500,
+  "rho_values": [1.0, 0.5, 0.2],
+  "drift_values": [0.001, 0.01, 0.1, 0.3, 0.6, 1.0],
+  "dimensions": [5],
+  "optimizers": null
+}

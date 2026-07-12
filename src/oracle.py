@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Optional, List, Tuple, Dict, Protocol, runtime_checkable, Union
 import numpy as np
-from core import (
+from .core import (
     DynamicEnvironment,
     Noise,
     Landscape,
@@ -93,7 +93,6 @@ class OracleProtocol(Protocol):
         3. end_step(): Unlocks environment, allowing advance to t+1.
 
     Scientific Basis:
-        Zinkevich (2003) "Online Convex Programming" — non-anticipative interaction.
         Besbes et al. (2015) "Non-stationary Stochastic Optimization" — dynamic regret.
     """
 
@@ -280,8 +279,10 @@ class FirstOrderOracle(Oracle):
         value_noise: Optional[Noise] = None,
         grad_noise: Optional[Noise] = None,
         seed: Optional[int] = None,
-        blind_value: bool = False,
+        blind_value: bool = True,
     ):
+        # Per Table 1, a pure First-Order oracle exposes ONLY the gradient by
+        # default (value unavailable). Pass blind_value=False to also expose value.
         super().__init__(environment, value_noise, grad_noise, seed)
         self.blind_value = blind_value
 
@@ -377,9 +378,12 @@ class ZeroOrderOracle(Oracle):
 # =============================================================================
 
 
-class HybridOracle(Oracle):
+class ScheduledOracle(Oracle):
     """
-    Oracle switching between First-Order and Zero-Order modes.
+    Oracle switching between First-Order and Zero-Order modes ON A SCHEDULE.
+
+    NOTE: This is NOT the simultaneous value+grad "hybrid" of Table 1 — for that,
+    use HybridOracle below. This oracle time-multiplexes FO/ZO phases instead.
 
     Scientific Scenario:
         Simulates environments with intermittent sensor failure or
@@ -467,8 +471,51 @@ class HybridOracle(Oracle):
                 grad=None,  # STRICTLY None in ZO phase
                 optimum_value=optimum_val,
                 query_index=self.n_queries,
-                mode=f"hybrid-zo-{self._schedule_idx}",
+                mode=f"scheduled-zo-{self._schedule_idx}",
             )
+
+
+class HybridOracle(Oracle):
+    """
+    Hybrid oracle (Table 1, "Hybrid"): returns BOTH value and gradient at every
+    query, with INDEPENDENT noise sources (xi_value ⊥ xi_grad).
+
+        value = L_t(x) + xi_value
+        grad  = ∇L_t(x) + xi_grad
+
+    Scientific Scenario:
+        Multi-source feedback where value and gradient come from different physical
+        channels (e.g. a cheap sensor for the value, a separate data-driven gradient),
+        so their noises are statistically independent.
+
+    For time-multiplexed FO/ZO switching, use ScheduledOracle instead.
+    """
+
+    def query(self, x: np.ndarray) -> Observation:
+        theta = self.get_current_theta()
+
+        clean_val = self.environment.landscape.loss(x, theta)
+        clean_grad = self.environment.landscape.grad(x, theta)
+        optimum_val = self.environment.landscape.loss(theta, theta)
+
+        # Independent value/grad noise sources (handled by _apply_noise).
+        noisy_val, noisy_grad = self._apply_noise(
+            clean_val, clean_grad, self._current_t
+        )
+
+        self.n_queries += 1
+        self.n_value_queries += 1
+        self.n_grad_queries += 1
+
+        return Observation(
+            x=x.copy(),
+            t=self._current_t,
+            value=noisy_val,
+            grad=noisy_grad,
+            optimum_value=optimum_val,
+            query_index=self.n_queries,
+            mode="hybrid",
+        )
 
 
 # =============================================================================
@@ -603,6 +650,7 @@ _ORACLE_REGISTRY = {
     "first-order": FirstOrderOracle,
     "zero-order": ZeroOrderOracle,
     "hybrid": HybridOracle,
+    "scheduled": ScheduledOracle,
     "offline": OfflineOracle,
 }
 

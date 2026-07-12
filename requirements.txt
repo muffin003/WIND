@@ -7,5 +7,3 @@ plotly>=5.20,<7
 scipy>=1.12,<2
 seaborn>=0.13,<1
 tqdm>=4.66,<5
-gymnasium>=1.0,<2
-pytest>=8,<10

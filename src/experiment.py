@@ -1,6 +1,6 @@
 """
 WIND Benchmark Experiment: Theoretically Grounded Stabilization Analysis
-Validates Definitions 1-2 for 26 optimization algorithms across (ρ, A) regimes.
+Validates Definitions 1-2 for 25 optimization algorithms across (ρ, A) regimes.
 
 Scientific Guarantees:
   ✓ Lyapunov function V_n(x) = ‖x - θ_n‖_{ρ+1}^{ρ+1} for stabilization analysis
@@ -10,25 +10,18 @@ Scientific Guarantees:
   ✓ Single-file export with full optimizer signature + environment config
 """
 
-import os
-import sys
 import json
 import numpy as np
 import pandas as pd
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
-from tqdm import tqdm
 import time
 import warnings
 
 # Suppress non-critical warnings for cleaner output
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 
-# Add project root to path
-project_root = Path(__file__).parent.absolute()
-sys.path.insert(0, str(project_root))
-
-from core import (
+from .core import (
     DynamicEnvironment,
     LinearDrift,
     QuadraticLandscape,
@@ -38,8 +31,8 @@ from core import (
     GaussianNoise,
     HeavyTailedNoise,
 )
-from oracle import FirstOrderOracle, ZeroOrderOracle, Observation
-from metrics import (
+from .oracle import FirstOrderOracle, ZeroOrderOracle, Observation
+from .metrics import (
     MetricsCollection,
     TrackingErrorMetric,
     LyapunovMetric,
@@ -48,14 +41,14 @@ from metrics import (
     DynamicRegretMetric,
     DriftAdaptationMetric,
 )
-from benchmark import BenchmarkRunner, OptimizerProtocol, ExperimentResult
+from .benchmark import BenchmarkRunner, OptimizerProtocol, ExperimentResult
 
 # ============================================================================
-# 1. ИСПРАВЛЕННЫЕ ОПТИМИЗАТОРЫ (все 26 алгоритмов с теоретическими параметрами)
+# 1. OPTIMIZERS (25 algorithms with theoretically motivated parameters)
 # ============================================================================
 
 # ============================================================================
-# FIRST-ORDER МЕТОДЫ (12 алгоритмов)
+# FIRST-ORDER METHODS (12 algorithms)
 # ============================================================================
 
 
@@ -399,7 +392,7 @@ class SignSGD(OptimizerProtocol):
 
 
 # ============================================================================
-# ZERO-ORDER МЕТОДЫ (14 алгоритмов) — ИСПРАВЛЕННЫЕ ВЕРСИИ
+# ZERO-ORDER METHODS (13 algorithms) — STABILIZED IMPLEMENTATIONS
 # ============================================================================
 
 
@@ -435,7 +428,7 @@ class OnePointSPSA(OptimizerProtocol):
     One-point SPSA with single measurement per step.
 
     Args:
-        lr: Learning rate (рекомендуется 0.005 для стабильности)
+        lr: Learning rate (0.005 is recommended for stability)
         perturb: Perturbation magnitude for gradient estimation
         name: Algorithm identifier
     """
@@ -444,7 +437,7 @@ class OnePointSPSA(OptimizerProtocol):
         self, lr: float = 0.005, perturb: float = 0.1, name: str = "OnePointSPSA"
     ):
         self.lr = lr
-        self.perturb = perturb  # ← КРИТИЧЕСКИ ВАЖНО: добавлен параметр perturb
+        self.perturb = perturb  # Explicit perturbation scale
         self.name = name
         self.prev_x = None
         self.prev_val = None
@@ -459,26 +452,26 @@ class OnePointSPSA(OptimizerProtocol):
         if self.prev_x is None:
             self.prev_x = obs.x.copy()
             self.prev_val = obs.value if obs.value is not None else 0.0
-            # Генерируем случайное направление возмущения
+            # Generate a random perturbation direction.
             self.delta = np.random.choice([-1, 1], size=obs.x.shape[0]).astype(float)
-            # Возвращаем возмущенную точку для следующего запроса
+            # Return the perturbed point for the next query.
             return self.prev_x + self.perturb * self.delta
 
-        # Оцениваем градиент из разности значений
+        # Estimate the gradient from the difference in values.
         grad_est = (obs.value - self.prev_val) / (self.perturb + 1e-12) * self.delta
 
-        # Защита от переполнения
+        # Guard against numerical overflow.
         grad_est = np.clip(grad_est, -10.0, 10.0)
 
-        # Обновляем позицию
+        # Update the current position.
         x_new = self.prev_x - self.lr * grad_est
 
-        # Сохраняем текущее состояние для следующей итерации
+        # Retain the current state for the next iteration.
         self.prev_x = obs.x.copy()
         self.prev_val = obs.value if obs.value is not None else 0.0
         self.delta = np.random.choice([-1, 1], size=obs.x.shape[0]).astype(float)
 
-        # Возвращаем возмущенную точку для следующего запроса
+        # Return the perturbed point for the next query.
         return x_new + self.perturb * self.delta
 
 
@@ -547,14 +540,14 @@ class FiniteDiffCentral(OptimizerProtocol):
 
 
 class FDSA(OptimizerProtocol):
-    """Finite Difference Stochastic Approximation (Spall, 1992) — ИСПРАВЛЕНО."""
+    """Finite Difference Stochastic Approximation (Spall, 1992)."""
 
     def __init__(self, lr: float = 0.02, h: float = 1e-4, name: str = "FDSA"):
         self.lr = lr
         self.h = h
         self.name = name
         self.x_prev = None
-        self.x_prev_val = None  # ← КРИТИЧЕСКИ ВАЖНО: инициализация атрибута
+        self.x_prev_val = None  # Previous evaluation point
 
     def reset(self):
         self.x_prev = None
@@ -611,7 +604,7 @@ class SPSA(OptimizerProtocol):
         grad_est = (
             (obs.value - self.x_prev_val) / (2 * self.perturb + 1e-12) * self.delta
         )
-        grad_est = np.clip(grad_est, -10.0, 10.0)  # Защита от переполнения
+        grad_est = np.clip(grad_est, -10.0, 10.0)  # Overflow guard
 
         x_new = self.x_prev - self.lr * grad_est
 
@@ -623,13 +616,11 @@ class SPSA(OptimizerProtocol):
 
 
 class ZOSGD(OptimizerProtocol):
-    """Zero-Order SGD with Gaussian smoothing — ИСПРАВЛЕНО (защита от переполнения)."""
+    """Zero-Order SGD with Gaussian smoothing and overflow protection."""
 
-    def __init__(
-        self, lr: float = 0.005, mu: float = 0.01, name: str = "ZOSGD"
-    ):  # ← ИСПРАВЛЕНО: lr=0.005
+    def __init__(self, lr: float = 0.005, mu: float = 0.01, name: str = "ZOSGD"):
         self.lr = lr
-        self.mu = max(mu, 1e-6)  # ← ЗАЩИТА от деления на ноль
+        self.mu = max(mu, 1e-6)  # Avoid division by zero
         self.name = name
         self.x_prev = None
         self.x_prev_val = None
@@ -648,11 +639,11 @@ class ZOSGD(OptimizerProtocol):
 
         # Estimate gradient via Gaussian smoothing with protection
         delta = obs.x - self.x_prev
-        delta_norm_sq = np.sum(delta**2) + 1e-12  # ← ЗАЩИТА от деления на ноль
+        delta_norm_sq = np.sum(delta**2) + 1e-12  # Avoid division by zero
         grad_est = (obs.value - self.x_prev_val) / delta_norm_sq * delta
 
         # Update position with gradient clipping
-        grad_est = np.clip(grad_est, -1e3, 1e3)  # ← ЗАЩИТА от переполнения
+        grad_est = np.clip(grad_est, -1e3, 1e3)  # Overflow guard
         x_new = self.x_prev - self.lr * grad_est
 
         # Store current state
@@ -667,9 +658,7 @@ class ZOSGD(OptimizerProtocol):
 class ZOSignSGD(OptimizerProtocol):
     """Zero-Order SignSGD with gradient sign estimation."""
 
-    def __init__(
-        self, lr: float = 0.005, mu: float = 0.01, name: str = "ZOSignSGD"
-    ):  # ← ИСПРАВЛЕНО: lr=0.005
+    def __init__(self, lr: float = 0.005, mu: float = 0.01, name: str = "ZOSignSGD"):
         self.lr = lr
         self.mu = mu
         self.name = name
@@ -756,7 +745,7 @@ class QuadraticInterpolation(OptimizerProtocol):
             t_opt = 0.0
 
         # Update position with clipping to prevent explosion
-        t_opt = np.clip(t_opt, -2.0, 2.0)  # ← ЗАЩИТА от больших шагов
+        t_opt = np.clip(t_opt, -2.0, 2.0)  # Guard against excessively large steps
         x_new = self.x_prev + t_opt * self.direction
 
         # Store for next iteration
@@ -775,7 +764,7 @@ class KieferWolfowitz(OptimizerProtocol):
 
     def __init__(
         self, lr: float = 0.005, cn: float = 0.1, name: str = "KieferWolfowitz"
-    ):  # ← ИСПРАВЛЕНО: lr=0.005
+    ):
         self.lr = lr
         self.cn = cn
         self.name = name
@@ -812,7 +801,7 @@ class KieferWolfowitz(OptimizerProtocol):
             )
 
         # Update position with gradient clipping
-        grad_est = np.clip(grad_est, -10.0, 10.0)  # ← ЗАЩИТА от переполнения
+        grad_est = np.clip(grad_est, -10.0, 10.0)  # Overflow guard
         x_new = self.x_prev - (self.lr / np.sqrt(self.n)) * grad_est
 
         # Store current state
@@ -829,9 +818,7 @@ class KieferWolfowitz(OptimizerProtocol):
 class NedicSubgradient(OptimizerProtocol):
     """Nedic's subgradient method for zero-order optimization."""
 
-    def __init__(
-        self, lr: float = 0.005, name: str = "NedicSubgradient"
-    ):  # ← ИСПРАВЛЕНО: lr=0.005
+    def __init__(self, lr: float = 0.005, name: str = "NedicSubgradient"):
         self.lr = lr
         self.name = name
         self.x_prev = None
@@ -878,7 +865,7 @@ class AcceleratedSPSA(OptimizerProtocol):
         self,
         lr: float = 0.005,
         perturb: float = 0.1,
-        beta: float = 0.9,  # ← ИСПРАВЛЕНО: lr=0.005
+        beta: float = 0.9,
         name: str = "AcceleratedSPSA",
     ):
         self.lr = lr
@@ -990,7 +977,7 @@ class CMAES(OptimizerProtocol):
 
 
 class GPUCB(OptimizerProtocol):
-    """Gaussian Process UCB for Bayesian optimization (simplified) — ИСПРАВЛЕНО."""
+    """Simplified Gaussian Process UCB for Bayesian optimization."""
 
     def __init__(self, beta: float = 2.0, name: str = "GPUCB"):
         self.beta = beta
@@ -1036,14 +1023,14 @@ class GPUCB(OptimizerProtocol):
 
         step_size = np.clip(
             self.beta * uncertainty, 0.0, 2.0
-        )  # ← ЗАЩИТА от больших шагов
+        )  # Guard against excessively large steps
         x_new = obs.x.copy() + step_size * direction
 
         return x_new
 
 
 # ============================================================================
-# 2. ФУНКЦИИ СОЗДАНИЯ СРЕДЫ И МЕТРИК
+# 2. ENVIRONMENT AND METRIC FACTORIES
 # ============================================================================
 
 
@@ -1113,7 +1100,7 @@ def create_metrics(rho: float, A: float) -> MetricsCollection:
 
 
 # ============================================================================
-# 3. ОСНОВНОЙ ЭКСПЕРИМЕНТ
+# 3. MAIN EXPERIMENT
 # ============================================================================
 
 
@@ -1156,12 +1143,17 @@ def run_single_experiment(
         "GPUCB",
     ]
 
+    # Authoritative oracle-type tag (consumed by OptimizerInfo.from_optimizer),
+    # avoiding the unreliable step()-signature heuristic.
+    optimizer.oracle_type = "zero-order" if is_zero_order else "first-order"
+
     if not is_zero_order:
         oracle = FirstOrderOracle(
             env,
             value_noise=GaussianNoise(sigma=0.01, seed=seed),
             grad_noise=GaussianNoise(sigma=0.01, seed=seed),
             seed=seed,
+            blind_value=False,  # legacy experiment relies on value being available
         )
     else:
         oracle = ZeroOrderOracle(
@@ -1180,8 +1172,9 @@ def run_single_experiment(
         tail_fraction=0.2,
     )
 
-    # Initial point near origin
-    x0 = np.random.randn(dim) * 0.1
+    # Generate x0 from the experiment seed before the runner starts. Keeping this
+    # generator local makes a saved seed sufficient to reproduce a single run.
+    x0 = np.random.default_rng(seed).normal(0.0, 0.1, size=dim)
 
     # Run experiment
     result = runner.run(optimizer=optimizer, T=T, x0=x0, seed=seed)
@@ -1191,8 +1184,12 @@ def run_single_experiment(
 
 def run_full_experiment_suite(
     output_dir: str = "results_lyapunov",
-    seeds: List[int] = [42, 43, 44, 45, 46],
+    seeds: Optional[List[int]] = None,
     T: int = 500,
+    rho_values: Optional[List[float]] = None,
+    A_values: Optional[List[float]] = None,
+    dimensions: Optional[List[int]] = None,
+    optimizer_names: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """
     Run complete experimental suite across (ρ, A) regimes.
@@ -1200,12 +1197,12 @@ def run_full_experiment_suite(
     Returns:
         Dictionary with aggregated results and metadata
     """
-    # Experiment design matrix
-    rho_values = [1.0, 0.5, 0.2]  # Hölder exponents
-    A_values = [0.001, 0.01, 0.1, 0.3, 0.6, 1.0]  # Drift magnitudes
-    dimensions = [5]  # Base dimension
+    seeds = [42, 43, 44, 45, 46] if seeds is None else seeds
+    rho_values = [1.0, 0.5, 0.2] if rho_values is None else rho_values
+    A_values = [0.001, 0.01, 0.1, 0.3, 0.6, 1.0] if A_values is None else A_values
+    dimensions = [5] if dimensions is None else dimensions
 
-    # Optimizer configurations (all 26 algorithms)
+    # Optimizer configurations (12 first-order + 13 zero-order algorithms)
     optimizers_config = [
         # First-Order methods (12)
         ("SGD", lambda: SGD(lr=0.1)),
@@ -1220,7 +1217,7 @@ def run_full_experiment_suite(
         ("ProxSGD", lambda: ProxSGD(lr=0.1, lambda_reg=0.01)),
         ("AdaptiveLR", lambda: AdaptiveLR(lr0=0.1)),
         ("SignSGD", lambda: SignSGD(lr=0.05)),
-        # Zero-Order methods (14) — SPSA и подобные с lr=0.005
+        # Zero-order methods (13); SPSA-family methods use lr=0.005.
         ("RandomSearch", lambda: RandomSearch(lr=0.1, scale=0.5)),
         ("OnePointSPSA", lambda: OnePointSPSA(lr=0.005, perturb=0.1)),  # ← lr=0.005
         # ("FiniteDiffForward", lambda: FiniteDiffForward(lr=0.02, h=1e-4)),
@@ -1239,6 +1236,14 @@ def run_full_experiment_suite(
         ("CMAES", lambda: CMAES(sigma=0.5)),
         ("GPUCB", lambda: GPUCB(beta=2.0)),
     ]
+
+    if optimizer_names is not None:
+        requested = set(optimizer_names)
+        known = {name for name, _ in optimizers_config}
+        unknown = requested - known
+        if unknown:
+            raise ValueError(f"Unknown optimizer(s): {sorted(unknown)}")
+        optimizers_config = [item for item in optimizers_config if item[0] in requested]
 
     # Setup output directory
     output_path = Path(output_dir)
@@ -1423,7 +1428,7 @@ def run_full_experiment_suite(
         "T": T,
         "elapsed_time_seconds": time.time() - start_time,
         "output_directory": str(output_path),
-        "spsa_lr": 0.005,  # ← ЯВНОЕ УКАЗАНИЕ ПАРАМЕТРА ДЛЯ ПУБЛИКАЦИИ
+        "spsa_lr": 0.005,  # Explicitly recorded for publication reproducibility
         "heavy_ball_lr": 0.1,
         "adam_lr": 0.001,
     }
@@ -1444,7 +1449,7 @@ def run_full_experiment_suite(
 
 
 # ============================================================================
-# 4. ГЛАВНОЕ ИСПОЛНЕНИЕ
+# 4. COMMAND-LINE EXECUTION
 # ============================================================================
 
 if __name__ == "__main__":
@@ -1452,7 +1457,7 @@ if __name__ == "__main__":
     print("WIND BENCHMARK: Theoretically Grounded Stabilization Analysis")
     print("=" * 80)
     print()
-    print("Validating Definitions 1-2 for 26 optimization algorithms:")
+    print("Validating Definitions 1-2 for 25 optimization algorithms:")
     print("  Definition 1 (Stabilization): ∃ C > 0 such that 𝔼[V_n(x̂_n)] ≤ C ∀ n")
     print("  Definition 2 (Asymptotic Bound): L = lim sup_{n→∞} 𝔼[V_n(x̂_n)] < ∞")
     print()

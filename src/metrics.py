@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional, Dict, Any, Union, Tuple
 import numpy as np
-from core import DynamicEnvironment, Landscape
-from oracle import Observation
+from .core import DynamicEnvironment, Landscape
+from .oracle import Observation
 
 # =============================================================================
 # 1. BASE METRIC INTERFACE (Backward Compatible + Optional rho)
@@ -187,6 +187,33 @@ class MaxCoordinateErrorMetric(Metric):
 
     def _aggregate(self, history: List[float]) -> float:
         return float(np.max(history))
+
+
+class StiefelGeodesicMetric(Metric):
+    """
+    Principal-angle geodesic distance on Stiefel(d, r) between x and theta.
+
+    Direction: MINIMIZE. The consistent tracking metric for StiefelLandscape:
+    x and theta are flattened (length d*r), reshaped to (d, r), and compared by
+    || arccos(sigma_i) ||_2 where sigma_i are the singular values of X^T Theta.
+    """
+
+    def __init__(self, d: int, r: int):
+        super().__init__(name="stiefel_geodesic", direction="minimize", rho=None)
+        self.d = d
+        self.r = r
+
+    def update(self, t, x, theta, observation, environment):
+        from .manifold import geodesic_distance
+
+        dist = geodesic_distance(
+            x.reshape(self.d, self.r), theta.reshape(self.d, self.r)
+        )
+        self._history.append(dist)
+        self._current_value = dist
+
+    def _aggregate(self, history: List[float]) -> float:
+        return float(np.mean(history))
 
 
 # =============================================================================
@@ -384,13 +411,6 @@ class DynamicRegretMetric(Metric):
         self._history.append(self._cumulative_regret)
         self._current_value = self._cumulative_regret
 
-    def get_current_values(self) -> Dict[str, float]:
-        return {
-            metric.name: metric._current_value
-            for metric in self.metrics
-            if metric._current_value is not None
-        }
-
     def _aggregate(self, history: List[float]) -> float:
         if not history:
             return float("nan")
@@ -491,6 +511,72 @@ class DriftAdaptationMetric(Metric):
 
     def _aggregate(self, history: List[float]) -> float:
         return float(np.mean(history))
+
+
+class AdaptivityMetric(Metric):
+    """
+    Adaptivity (Table 5): recovery speed relative to an ideal tracker.
+
+        adaptivity = TTR_oracle / TTR_algo   (averaged over recovery events)
+
+    where TTR_algo is the number of steps the algorithm needs to return to the
+    epsilon-neighborhood after a jump, and TTR_oracle is the ideal/minimal recovery
+    time (default 1 step). Value in (0, 1]: 1 = recovers as fast as the ideal tracker,
+    -> 0 = much slower.
+
+    NOTE: This is the corrected form of the spec's '1 - TTR_algo/TTR_oracle', which
+    would invert the ordering (0 = ideal) and produce negative values. Direction is
+    'maximize'. The cosine-based DriftAdaptationMetric is retained as a complementary
+    measure.
+    """
+
+    def __init__(
+        self,
+        jump_threshold: float = 1.0,
+        epsilon: float = 0.1,
+        oracle_ttr: float = 1.0,
+    ):
+        super().__init__(name="adaptivity", direction="maximize", rho=None)
+        if oracle_ttr <= 0:
+            raise ValueError("oracle_ttr must be > 0")
+        self.jump_threshold = jump_threshold
+        self.epsilon = epsilon
+        self.oracle_ttr = oracle_ttr
+        self._prev_theta: Optional[np.ndarray] = None
+        self._active: Optional[int] = None  # steps elapsed since unrecovered jump
+        self._ratios: List[float] = []
+
+    def update(self, t, x, theta, observation, environment):
+        is_jump = False
+        if self._prev_theta is not None:
+            if np.linalg.norm(theta - self._prev_theta) > self.jump_threshold:
+                is_jump = True
+
+        err = np.linalg.norm(x - theta)
+
+        if self._active is not None:
+            self._active += 1
+            if err <= self.epsilon:
+                ttr_algo = max(self._active, 1)
+                self._ratios.append(min(1.0, self.oracle_ttr / ttr_algo))
+                self._active = None
+
+        if is_jump and err > self.epsilon:
+            self._active = 0
+
+        self._prev_theta = theta.copy()
+        cur = self._ratios[-1] if self._ratios else 0.0
+        self._history.append(cur)
+        self._current_value = cur
+
+    def _aggregate(self, history: List[float]) -> float:
+        return float(np.mean(self._ratios)) if self._ratios else float("nan")
+
+    def reset(self) -> None:
+        super().reset()
+        self._prev_theta = None
+        self._active = None
+        self._ratios = []
 
 
 # =============================================================================
