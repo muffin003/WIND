@@ -1,199 +1,168 @@
 ![CI: Linter](https://github.com/muffin003/Stochastic-Optimization-Benchmark/actions/workflows/lint.yml/badge.svg)
 ![CI: Tests](https://github.com/muffin003/Stochastic-Optimization-Benchmark/actions/workflows/test.yml/badge.svg)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
----
+# WIND Benchmark
 
-#  WIND Benchmark
+WIND is a modular benchmark for stochastic optimization in non-stationary
+environments. It compares how well optimization algorithms track a hidden,
+moving optimum under different landscapes, drift processes, noise models and
+information constraints.
 
-**WIND** is a modular benchmark for stochastic optimization in non-stationary environments, controlled via configuration dictionaries. You don't need to modify the environment source code to switch from Gaussian-noise testing to testing on the Rosenbrock function — simply change the `cfg` configuration parameters.
+At time `t`, an optimizer commits to `x_t`, queries an oracle, and only then the
+environment advances from `theta_t` to `theta_(t+1)`. The runner records the
+privileged ground truth for analysis without exposing it to the optimizer.
 
----
+## Requirements and installation
 
-##  Table of Contents
+WIND supports **Python 3.11 or newer**. Do not copy or commit a virtual
+environment; recreate it from the project metadata:
 
-- [Installation](#-1-installation-and-dependencies)
-- [Configuration](#-2-control-panel-config-dictionary)
-- [Running Scenarios](#-3-running-scenarios)
-- [Adding Your Algorithm](#-4-adding-your-own-algorithm)
-- [Visualization](#-5-reading-reports-visualizer)
-- [License](#-license)
-
----
-
-## 1. Installation and Dependencies
-
-The code is written for **Python 3.7+**. Required libraries:
-
-```bash
-pip install numpy matplotlib seaborn pandas scipy tqdm
+```powershell
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -e ".[gym,dev]"
 ```
 
-If you are working in **Google Colab**, add this at the start of your notebook:
+On Linux or macOS, activate it with `source .venv/bin/activate`.
 
-```python
-%matplotlib inline
-import warnings
-warnings.filterwarnings("ignore")
+The `gym` extra installs the optional Gymnasium adapter. The `dev` extra installs
+pytest and Black. `requirements.txt` remains available for tools that cannot
+install a `pyproject.toml` project.
+
+## Architecture
+
+The installable package is `wind_benchmark` and its source is in `src/`.
+
+| Module | Responsibility |
+| --- | --- |
+| `core.py` | Dynamic environment, drifts, landscapes and noise models |
+| `oracle.py` | First-order, zero-order, hybrid, scheduled and offline oracles |
+| `benchmark.py` | Single-run and multi-seed runners, result export |
+| `metrics.py` | Tracking error, Lyapunov metrics, regret and adaptation metrics |
+| `experiment.py` | 25 reference optimizers and the full experiment suite |
+| `gym_env.py` | Optional Gymnasium/POMDP adapter |
+| `visualization.py` | Metric, comparison and trajectory plots |
+| `manifold.py` | Stiefel-manifold helpers and Riemannian SGD |
+
+The main suite currently contains 25 optimizers: 12 first-order and 13
+zero-order methods.
+
+## Run an experiment
+
+Copy `experiment.example.json`, edit the grid, then run:
+
+```powershell
+wind-benchmark --config experiment.example.json
 ```
 
----
+The equivalent module command is:
 
-## 2. Control Panel (Config Dictionary)
-
-The core of any scenario is the configuration dictionary. It defines the **physics** of the world in which the algorithm operates.
-
-| Parameter | Type | Range | Description |
-| :--- | :--- | :--- | :--- |
-| **`dim`** | `int` | 2 to 100+ | Dimension of the search space (d). |
-| **`rho`** | `float` | 0.05 to 1.0 | Hölder exponent. |
-| **`drift_speed`** | `float` | 0.0 to 0.1 | Speed of optimum drift (A). |
-| **`noise_type`** | `str` | 'gaussian', 'pareto' | Gradient noise distribution type. |
-| **`noise_scale`** | `float` | 0.0 to 3.0 | Noise strength multiplier. |
-| **`geometry`** | `str` | 'ideal', 'distorted', 'rosenbrock' | Function topology. |
-| **`condition_number`** | `float` | 1.0 to 1000.0 | Condition number (for 'distorted'). |
-
----
-
-## 3. Running Scenarios
-
-###  Scenario A: Stability Topology
-
-```python
-rho_grid = [0.2, 0.6, 1.0]
-drift_grid = [0.0, 0.05, 0.10]
-
-results = []
-
-for d in drift_grid:
-    for r in rho_grid:
-        cfg = {
-            'dim': 2,
-            'rho': r,
-            'drift_speed': d,
-            'noise_type': 'gaussian',
-            'noise_scale': 0.5,
-            'geometry': 'ideal'
-        }
-
-        best_hp = tuner.tune(cfg)
-
-        errors, success, traj = run_adaptive_experiment(
-            MyOptimizer, best_hp, cfg, min_runs=30, tol=0.15
-        )
-
-        results.append({
-            'type': 'heatmap',
-            'rho': r,
-            'drift': d,
-            'success': success,
-            'errors': errors
-        })
+```powershell
+python -m wind_benchmark --config experiment.example.json
 ```
 
----
+Resolve and inspect a configuration without starting calculations:
 
-### Scenario B: Pareto Noise
+```powershell
+wind-benchmark --config experiment.example.json --dry-run
+```
+
+Configuration fields:
+
+| Field | Meaning |
+| --- | --- |
+| `output_dir` | Result directory |
+| `seeds` | Independent reproducibility seeds |
+| `steps` | Steps in each run |
+| `rho_values` | Hölder exponents |
+| `drift_values` | Drift magnitudes `A` |
+| `dimensions` | Search-space dimensions |
+| `optimizers` | Selected optimizer names, or `null` for all 25 |
+
+For a quick smoke test, use one value in every grid and a small optimizer list:
+
+```json
+{
+  "output_dir": "results_smoke",
+  "seeds": [42],
+  "steps": 20,
+  "rho_values": [1.0],
+  "drift_values": [0.01],
+  "dimensions": [5],
+  "optimizers": ["SGD", "SPSA"]
+}
+```
+
+## Python API
+
+Create components from configuration dictionaries:
 
 ```python
-cfg_pareto = {
-    'dim': 2,
-    'rho': 0.5,
-    'drift_speed': 0.02,
-    'noise_type': 'pareto',
-    'noise_scale': 1.0,
-    'geometry': 'ideal'
+from wind_benchmark import BenchmarkRunner, FirstOrderOracle, make_environment
+
+config = {
+    "dim": 5,
+    "drift": {"type": "random_walk", "sigma": 0.02},
+    "landscape": {"type": "quadratic", "condition_number": 10},
+    "x_bounds": [-10, 10],
 }
 
-best_hp = tuner.tune(cfg_pareto)
-
-errs, succ, _ = run_adaptive_experiment(
-    MyOptimizer, best_hp, cfg_pareto,
-    min_runs=100, max_runs=1000, tol=0.05
-)
-
-print(f"Pareto Stability: {succ:.1%}")
+environment = make_environment(config, seed=42)
+oracle = FirstOrderOracle(environment, seed=42)
 ```
 
----
-
-### Scenario C: Distorted Valley
+Custom optimizers follow `OptimizerProtocol`; no `BaseOptimizer` inheritance is
+required:
 
 ```python
-cfg_valley = {
-    'dim': 2,
-    'rho': 1.0,
-    'drift_speed': 0.02,
-    'noise_type': 'gaussian',
-    'noise_scale': 0.1,
-    'geometry': 'distorted',
-    'condition_number': 100.0
-}
+import numpy as np
+from wind_benchmark.benchmark import OptimizerProtocol
+from wind_benchmark.oracle import Observation
 
-best_hp = tuner.tune(cfg_valley)
-errs, succ, _ = run_adaptive_experiment(MyOptimizer, best_hp, cfg_valley)
+
+class MyOptimizer(OptimizerProtocol):
+    name = "MyOptimizer"
+    oracle_type = "first-order"
+
+    def __init__(self, lr: float = 0.01):
+        self.lr = lr
+
+    def reset(self) -> None:
+        pass
+
+    def step(self, observation: Observation) -> np.ndarray:
+        if observation.grad is None:
+            raise ValueError("MyOptimizer requires a gradient")
+        return observation.x - self.lr * observation.grad
 ```
 
----
+## Reproducibility
 
-### Scenario D: Rosenbrock
+Each result stores its seed and complete optimizer/environment metadata. The
+experiment uses a local NumPy generator for `x0`, while drift and noise objects
+restore their initial RNG states on reset. Repeating the same configuration,
+seed and dependency versions therefore reproduces a run.
 
-```python
-cfg_rosen = {
-    'dim': 2,
-    'rho': 1.0,
-    'drift_speed': 0.01,
-    'noise_type': 'gaussian',
-    'noise_scale': 0.1,
-    'geometry': 'rosenbrock'
-}
+For publication-grade archival, retain:
 
-best_hp = tuner.tune(cfg_rosen)
-errs, succ, traj = run_adaptive_experiment(MyOptimizer, best_hp, cfg_rosen)
+- the experiment JSON;
+- `experiment_metadata.json` and individual result JSON files;
+- the Git commit;
+- Python and dependency versions.
+
+## Tests
+
+```powershell
+python -m pytest
+black --check .
 ```
 
----
+Tests cover environment invariants, information barriers, temporal consistency,
+reset reproducibility, batch aggregation, Gymnasium compliance and Stiefel
+geometry.
 
-### Scenario E: Scalability
+## License
 
-```python
-dims = [2, 10, 50, 100]
-results_dim = []
-
-for d in dims:
-    cfg_dim = {
-        'dim': d,
-        'rho': 0.5,
-        'drift_speed': 0.05,
-        'noise_type': 'gaussian',
-        'geometry': 'ideal'
-    }
-
-    best_hp = tuner.tune(cfg_dim)
-    errs, _, _ = run_adaptive_experiment(MyOptimizer, best_hp, cfg_dim)
-
-    results_dim.append({
-        'dim': d,
-        'error': np.median(errs)
-    })
-```
-
----
-
-## 4. Adding Your Own Algorithm
-
-```python
-class MyCustomOptimizer(BaseOptimizer):
-    def step(self, x, oracle_data):
-        grad = oracle_data.get('grad')
-        lr = self.hp.get('lr', 0.01)
-        return x - lr * grad
-```
-
----
-
-## 5. Visualization
-
-Use `BenchmarkVisualizer` to generate plots and dashboards.
-
----
+MIT. See [LICENSE](LICENSE).

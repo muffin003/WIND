@@ -1,0 +1,11 @@
+# Convenience requirements for users who do not install the project itself.
+# The authoritative dependency metadata lives in pyproject.toml.
+matplotlib>=3.8,<4
+numpy>=1.26,<3
+pandas>=2.2,<4
+plotly>=5.20,<7
+scipy>=1.12,<2
+seaborn>=0.13,<1
+tqdm>=4.66,<5
+gymnasium>=1.0,<2
+pytest>=8,<10

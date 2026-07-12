@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wind-benchmark"
+version = "0.2.0"
+description = "Benchmark for stochastic optimization in non-stationary environments"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {file = "LICENSE"}
+dependencies = [
+  "matplotlib>=3.8,<4",
+  "numpy>=1.26,<3",
+  "pandas>=2.2,<4",
+  "plotly>=5.20,<7",
+  "scipy>=1.12,<2",
+  "seaborn>=0.13,<1",
+  "tqdm>=4.66,<5",
+]
+
+[project.optional-dependencies]
+gym = ["gymnasium>=1.0,<2"]
+dev = ["black>=24,<27", "pytest>=8,<10"]
+
+[project.scripts]
+wind-benchmark = "wind_benchmark.cli:main"
+
+[tool.setuptools]
+package-dir = {wind_benchmark = "src"}
+packages = ["wind_benchmark"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.black]
+target-version = ["py311"]
