@@ -557,8 +557,10 @@ class StiefelLandscape(Landscape):
     Euclidean gradient 2(X - Theta); a Riemannian optimizer projects it onto the
     tangent space and retracts (see manifold.tangent_project / manifold.retract).
 
-    The consistent distance is the principal-angle geodesic distance
-    (metrics.StiefelGeodesicMetric), NOT the flat ||x - theta||.
+    This is a frame-tracking task: X and XQ are distinct targets for a general
+    orthogonal Q. The matching tracking distance is the Frobenius frame distance
+    (metrics.StiefelFrameMetric). Use GrassmannLandscape when only the spanned
+    subspace matters.
     """
 
     def __init__(self, d: int, r: int):
@@ -580,6 +582,44 @@ class StiefelLandscape(Landscape):
         from .manifold import random_stiefel
 
         return random_stiefel(d, r, np.random.default_rng(seed)).reshape(-1)
+
+
+class GrassmannLandscape(Landscape):
+    """Basis-invariant subspace-tracking loss.
+
+    Points are represented by flattened orthonormal frames X, Theta in
+    Stiefel(d, r), while frames related by a right orthogonal transformation
+    represent the same element of Gr(d, r). The loss is
+
+        L(X, Theta) = 0.5 ||X X^T - Theta Theta^T||_F^2.
+
+    On feasible frames this equals the sum of squared sines of the principal
+    angles. ``grad`` returns the ambient Euclidean gradient; manifold-aware
+    methods may project it onto the tangent space before retracting.
+    """
+
+    def __init__(self, d: int, r: int):
+        if not (1 <= r <= d):
+            raise ValueError("Grassmann requires 1 <= r <= d")
+        self.d = d
+        self.r = r
+
+    def loss(self, x: np.ndarray, theta: np.ndarray) -> float:
+        X = np.asarray(x, dtype=float).reshape(self.d, self.r)
+        Theta = np.asarray(theta, dtype=float).reshape(self.d, self.r)
+        projector_diff = X @ X.T - Theta @ Theta.T
+        return 0.5 * float(np.sum(projector_diff * projector_diff))
+
+    def grad(self, x: np.ndarray, theta: np.ndarray) -> np.ndarray:
+        X = np.asarray(x, dtype=float).reshape(self.d, self.r)
+        Theta = np.asarray(theta, dtype=float).reshape(self.d, self.r)
+        projector_diff = X @ X.T - Theta @ Theta.T
+        return (2.0 * projector_diff @ X).reshape(-1)
+
+    @staticmethod
+    def random_point(d: int, r: int, seed: Optional[int] = None) -> np.ndarray:
+        """A random orthonormal representative of a point in Gr(d, r)."""
+        return StiefelLandscape.random_point(d, r, seed=seed)
 
 
 # =============================================================================
@@ -917,6 +957,7 @@ _LANDSCAPE_REGISTRY = {
     "robust": RobustLandscape,
     "simplex": SimplexLandscape,
     "stiefel": StiefelLandscape,
+    "grassmann": GrassmannLandscape,
 }
 
 _NOISE_REGISTRY = {
@@ -981,7 +1022,12 @@ def make_environment(config: Dict[str, Any], seed: int = 42) -> DynamicEnvironme
     d_conf = dict(config.get("drift", {"type": "stationary"}))
     d_type = d_conf.pop("type")
     # Inject dependencies if needed
-    if "seed" not in d_conf and d_type in ["random_walk", "jump", "sparse"]:
+    if "seed" not in d_conf and d_type in [
+        "random_walk",
+        "jump",
+        "sparse",
+        "stiefel",
+    ]:
         d_conf["seed"] = seed
     if "dim" not in d_conf and d_type in ["jump", "sparse"]:
         d_conf["dim"] = dim
@@ -996,7 +1042,37 @@ def make_environment(config: Dict[str, Any], seed: int = 42) -> DynamicEnvironme
         l_conf["seed"] = seed + 1
     landscape = make_landscape(l_type, **l_conf)
 
+    if isinstance(landscape, (StiefelLandscape, GrassmannLandscape)) and dim != (
+        landscape.d * landscape.r
+    ):
+        raise ValueError(
+            "For a Stiefel or Grassmann landscape, config['dim'] must equal d*r: "
+            f"got dim={dim}, d={landscape.d}, r={landscape.r}"
+        )
+
+    # Constrained landscapes need a feasible latent initial state. Euclidean
+    # environments retain the historical zero initialization.
+    initial_theta = config.get("initial_theta")
+    if initial_theta is None and isinstance(landscape, SimplexLandscape):
+        initial_theta = np.full(dim, 1.0 / dim)
+    elif initial_theta is None and isinstance(
+        landscape, (StiefelLandscape, GrassmannLandscape)
+    ):
+        initial_theta = landscape.random_point(landscape.d, landscape.r, seed=seed + 2)
+    elif initial_theta is not None:
+        initial_theta = np.asarray(initial_theta, dtype=float).reshape(-1)
+        if initial_theta.size != dim:
+            raise ValueError(
+                f"initial_theta must contain {dim} entries, got {initial_theta.size}"
+            )
+
     # Bounds
     bounds = config.get("x_bounds", None)
 
-    return DynamicEnvironment(dim=dim, drift=drift, landscape=landscape, bounds=bounds)
+    return DynamicEnvironment(
+        dim=dim,
+        drift=drift,
+        landscape=landscape,
+        initial_theta=initial_theta,
+        bounds=bounds,
+    )
