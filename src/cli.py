@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional, Sequence
 from .experiment import run_full_experiment_suite
 
 DEFAULT_CONFIG: Dict[str, Any] = {
-    "output_dir": "results_lyapunov",
+    "output_dir": "results/lyapunov",
     "seeds": [42, 43, 44, 45, 46],
     "steps": 500,
     "rho_values": [1.0, 0.5, 0.2],

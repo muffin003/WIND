@@ -9,6 +9,14 @@ build/
 *.egg-info/
 .ipynb_checkpoints/
 .DS_Store
+
+# Local manuscripts, references, generated figures, notebooks, and run output.
+/local/
+
 *.csv
 *.json
 !experiment.example.json
+
+# Published run outputs are versioned deliberately.
+!/results/
+!/results/**

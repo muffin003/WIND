@@ -40,8 +40,8 @@ def retract(X: np.ndarray, xi: np.ndarray) -> np.ndarray:
     return project_to_stiefel(X + xi)
 
 
-def geodesic_distance(X: np.ndarray, Y: np.ndarray) -> float:
-    """Principal-angle (Grassmann) geodesic distance between two frames.
+def principal_angle_distance(X: np.ndarray, Y: np.ndarray) -> float:
+    """Grassmann geodesic distance between the represented subspaces.
 
     d(X, Y) = || arccos(sigma_i) ||_2, where sigma_i are the singular values of
     X^T Y (the cosines of the principal angles). Zero iff the frames span the same
@@ -50,6 +50,20 @@ def geodesic_distance(X: np.ndarray, Y: np.ndarray) -> float:
     s = np.linalg.svd(X.T @ Y, compute_uv=False)
     angles = np.arccos(np.clip(s, -1.0, 1.0))
     return float(np.linalg.norm(angles))
+
+
+def frame_frobenius_distance(X: np.ndarray, Y: np.ndarray) -> float:
+    """Extrinsic distance between two oriented Stiefel frames."""
+    return float(np.linalg.norm(X - Y, ord="fro"))
+
+
+def geodesic_distance(X: np.ndarray, Y: np.ndarray) -> float:
+    """Backward-compatible alias for :func:`principal_angle_distance`.
+
+    This historical name measures distance between column spaces, not between
+    oriented Stiefel frames. New code should use ``principal_angle_distance``.
+    """
+    return principal_angle_distance(X, Y)
 
 
 def cayley_orthogonal(A: np.ndarray) -> np.ndarray:

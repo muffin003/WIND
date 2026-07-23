@@ -1183,7 +1183,7 @@ def run_single_experiment(
 
 
 def run_full_experiment_suite(
-    output_dir: str = "results_lyapunov",
+    output_dir: str = "results/lyapunov",
     seeds: Optional[List[int]] = None,
     T: int = 500,
     rho_values: Optional[List[float]] = None,
@@ -1469,7 +1469,7 @@ if __name__ == "__main__":
 
     # Run experiment
     results = run_full_experiment_suite(
-        output_dir="results_lyapunov", seeds=[42, 43, 44, 45, 46], T=500
+        output_dir="results/lyapunov", seeds=[42, 43, 44, 45, 46], T=500
     )
 
     # Summary statistics
@@ -1512,7 +1512,7 @@ if __name__ == "__main__":
         print(f"  {rank}. {algo:25s} → std = {std_val:.3f} (lower = more robust)")
 
     print("\n" + "=" * 80)
-    print("✅ All results saved to ./results_lyapunov/")
+    print("✅ All results saved to ./results/lyapunov/")
     print("   Key files:")
     print("     • full_results.csv          - Raw results for all runs")
     print("     • aggregated_statistics.csv - Mean/std per (algo, ρ, A)")

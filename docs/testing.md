@@ -1,7 +1,8 @@
-#
+# WIND Benchmark Test Suite
 
 ## Purpose
-This test suite validates the correctness and reliability of the  benchmark for online convex optimization. The tests ensure that:
+This suite validates the correctness and reliability of WIND across dynamic,
+constrained, and manifold-valued optimization tasks. The tests ensure that:
 
 - All mathematical invariants required by the theory are satisfied
 - The interaction between optimizers and dynamic environments follows strict temporal consistency

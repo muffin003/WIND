@@ -85,7 +85,7 @@ For a quick smoke test, use one value in every grid and a small optimizer list:
 
 ```json
 {
-  "output_dir": "results_smoke",
+  "output_dir": "results/smoke",
   "seeds": [42],
   "steps": 20,
   "rho_values": [1.0],
@@ -138,6 +138,35 @@ class MyOptimizer(OptimizerProtocol):
         return observation.x - self.lr * observation.grad
 ```
 
+## Gymnasium and constrained actions
+
+The optional Gymnasium adapter exposes the same dynamic task to RL policies.
+Install the `gym` extra, then wrap a configured environment and oracle:
+
+```python
+from wind_benchmark.gym_env import WindGymEnv
+
+gym_env = WindGymEnv(
+    environment,
+    oracle=oracle,
+    action_mode="delta",
+    geometry="auto",
+    reward="neg_regret",
+)
+observation, info = gym_env.reset(seed=42)
+```
+
+`geometry="auto"` preserves the original clipped `Box` actions for Euclidean
+landscapes. Simplex actions are projected onto the probability simplex. For a
+`StiefelLandscape`, absolute actions are projected to an orthonormal frame and
+delta actions are projected to the tangent space and retracted. A
+`GrassmannLandscape` uses the same feasible representatives but defines a
+separate, basis-invariant subspace-tracking task: `X` and `X @ Q` are equivalent
+for orthogonal `Q`. Accordingly, `neg_error` uses Frobenius frame distance for
+Stiefel tasks and principal-angle distance for Grassmann tasks. Oracle modes are
+unchanged: first-order, zero-order, hybrid, scheduled and offline replay remain
+available through the same core.
+
 ## Reproducibility
 
 Each result stores its seed and complete optimizer/environment metadata. The
@@ -152,6 +181,10 @@ For publication-grade archival, retain:
 - the Git commit;
 - Python and dependency versions.
 
+Run outputs are stored under `results/` and are intentionally included in the
+repository. Manuscript drafts, reference papers, notebooks, and machine-local
+files belong under the Git-ignored `local/` directory.
+
 ## Tests
 
 ```powershell
@@ -160,8 +193,9 @@ black --check .
 ```
 
 Tests cover environment invariants, information barriers, temporal consistency,
-reset reproducibility, batch aggregation, Gymnasium compliance and Stiefel
-geometry.
+reset reproducibility, batch aggregation, Gymnasium compliance, and both Stiefel
+and Grassmann geometry. See [`docs/testing.md`](docs/testing.md) for the detailed
+test catalogue.
 
 ## License
 

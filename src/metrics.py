@@ -189,24 +189,18 @@ class MaxCoordinateErrorMetric(Metric):
         return float(np.max(history))
 
 
-class StiefelGeodesicMetric(Metric):
-    """
-    Principal-angle geodesic distance on Stiefel(d, r) between x and theta.
-
-    Direction: MINIMIZE. The consistent tracking metric for StiefelLandscape:
-    x and theta are flattened (length d*r), reshaped to (d, r), and compared by
-    || arccos(sigma_i) ||_2 where sigma_i are the singular values of X^T Theta.
-    """
+class StiefelFrameMetric(Metric):
+    """Frobenius tracking distance between oriented Stiefel frames."""
 
     def __init__(self, d: int, r: int):
-        super().__init__(name="stiefel_geodesic", direction="minimize", rho=None)
+        super().__init__(name="stiefel_frame_frobenius", direction="minimize", rho=None)
         self.d = d
         self.r = r
 
     def update(self, t, x, theta, observation, environment):
-        from .manifold import geodesic_distance
+        from .manifold import frame_frobenius_distance
 
-        dist = geodesic_distance(
+        dist = frame_frobenius_distance(
             x.reshape(self.d, self.r), theta.reshape(self.d, self.r)
         )
         self._history.append(dist)
@@ -214,6 +208,46 @@ class StiefelGeodesicMetric(Metric):
 
     def _aggregate(self, history: List[float]) -> float:
         return float(np.mean(history))
+
+
+class GrassmannPrincipalAngleMetric(Metric):
+    """Principal-angle geodesic distance between tracked subspaces.
+
+    x and theta are flattened (length d*r), reshaped to (d, r), and compared by
+    || arccos(sigma_i) ||_2 where sigma_i are the singular values of X^T Theta.
+    Frames X and XQ therefore have zero distance for every orthogonal Q.
+    """
+
+    def __init__(self, d: int, r: int):
+        super().__init__(
+            name="grassmann_principal_angle", direction="minimize", rho=None
+        )
+        self.d = d
+        self.r = r
+
+    def update(self, t, x, theta, observation, environment):
+        from .manifold import principal_angle_distance
+
+        dist = principal_angle_distance(
+            x.reshape(self.d, self.r), theta.reshape(self.d, self.r)
+        )
+        self._history.append(dist)
+        self._current_value = dist
+
+    def _aggregate(self, history: List[float]) -> float:
+        return float(np.mean(history))
+
+
+class StiefelGeodesicMetric(GrassmannPrincipalAngleMetric):
+    """Backward-compatible name for the historical principal-angle metric.
+
+    Despite its name, this metric is basis-invariant and therefore measures a
+    Grassmann subspace error. Use ``GrassmannPrincipalAngleMetric`` in new tasks.
+    """
+
+    def __init__(self, d: int, r: int):
+        super().__init__(d=d, r=r)
+        self.name = "stiefel_geodesic"
 
 
 # =============================================================================

@@ -6,6 +6,7 @@ import pytest
 
 from wind_benchmark.core import (
     DynamicEnvironment,
+    GrassmannLandscape,
     StationaryDrift,
     StiefelDrift,
     StiefelLandscape,
@@ -14,7 +15,12 @@ from wind_benchmark.core import (
     make_landscape,
 )
 from wind_benchmark.oracle import FirstOrderOracle
-from wind_benchmark.metrics import MetricsCollection, StiefelGeodesicMetric
+from wind_benchmark.metrics import (
+    GrassmannPrincipalAngleMetric,
+    MetricsCollection,
+    StiefelFrameMetric,
+    StiefelGeodesicMetric,
+)
 from wind_benchmark.benchmark import BenchmarkRunner
 from wind_benchmark.manifold import (
     random_stiefel,
@@ -22,6 +28,7 @@ from wind_benchmark.manifold import (
     tangent_project,
     retract,
     geodesic_distance,
+    principal_angle_distance,
     cayley_orthogonal,
     RiemannianSGD,
 )
@@ -62,6 +69,12 @@ def test_geodesic_distance_zero_at_same_point():
     assert geodesic_distance(X, Y) > 1e-3
 
 
+def test_principal_angle_distance_is_invariant_to_basis_rotation():
+    X = random_stiefel(5, 2, np.random.default_rng(31))
+    Q = np.array([[0.0, -1.0], [1.0, 0.0]])
+    assert principal_angle_distance(X, X @ Q) < 1e-7
+
+
 def test_cayley_is_orthogonal():
     rng = np.random.default_rng(4)
     A = rng.normal(size=(4, 4))
@@ -78,6 +91,26 @@ def test_stiefel_landscape_invariant():
     assert np.allclose(land.grad(theta, theta), 0.0)
     x = StiefelLandscape.random_point(4, 2, seed=6)
     assert land.loss(x, theta) >= 0.0
+
+
+def test_frame_and_subspace_landscapes_treat_basis_changes_differently():
+    d, r = 5, 2
+    theta = StiefelLandscape.random_point(d, r, seed=32).reshape(d, r)
+    Q = np.array([[0.0, -1.0], [1.0, 0.0]])
+    equivalent_frame = theta @ Q
+
+    frame_landscape = StiefelLandscape(d=d, r=r)
+    subspace_landscape = GrassmannLandscape(d=d, r=r)
+
+    assert frame_landscape.loss(equivalent_frame.reshape(-1), theta.reshape(-1)) > 1.0
+    assert (
+        subspace_landscape.loss(equivalent_frame.reshape(-1), theta.reshape(-1)) < 1e-12
+    )
+    assert np.allclose(
+        subspace_landscape.grad(equivalent_frame.reshape(-1), theta.reshape(-1)),
+        0.0,
+        atol=1e-10,
+    )
 
 
 def test_stiefel_drift_stays_on_manifold_and_resets():
@@ -105,6 +138,7 @@ def test_stiefel_drift_stays_on_manifold_and_resets():
 
 def test_factories_build_stiefel():
     assert isinstance(make_landscape("stiefel", d=4, r=2), StiefelLandscape)
+    assert isinstance(make_landscape("grassmann", d=4, r=2), GrassmannLandscape)
     assert isinstance(make_drift("stiefel", d=4, r=2, seed=1), StiefelDrift)
 
 
@@ -131,6 +165,22 @@ def test_stiefel_geodesic_metric_zero_when_tracking():
     assert metric.direction == "minimize"
 
 
+def test_frame_and_subspace_metrics_treat_basis_changes_differently():
+    d, r = 5, 2
+    theta = StiefelLandscape.random_point(d, r, seed=33).reshape(d, r)
+    Q = np.array([[0.0, -1.0], [1.0, 0.0]])
+    equivalent_frame = theta @ Q
+
+    frame_metric = StiefelFrameMetric(d=d, r=r)
+    subspace_metric = GrassmannPrincipalAngleMetric(d=d, r=r)
+    args = (0, equivalent_frame.reshape(-1), theta.reshape(-1), None, None)
+    frame_metric.update(*args)
+    subspace_metric.update(*args)
+
+    assert frame_metric._current_value > 1.0
+    assert subspace_metric._current_value < 1e-7
+
+
 # ------------------------------------------------------------------ end-to-end
 def test_riemannian_sgd_tracks_drifting_optimum():
     d, r = 5, 2
@@ -146,13 +196,13 @@ def test_riemannian_sgd_tracks_drifting_optimum():
         bounds=None,  # never clip — would break orthonormality
     )
     oracle = FirstOrderOracle(env)  # gradient only (blind value), which R-SGD needs
-    metrics = MetricsCollection([StiefelGeodesicMetric(d=d, r=r)])
+    metrics = MetricsCollection([StiefelFrameMetric(d=d, r=r)])
     runner = BenchmarkRunner(env, oracle, metrics, record_trajectory=True)
 
     opt = RiemannianSGD(d=d, r=r, lr=0.5)
     result = runner.run(opt, T=150, x0=x0, seed=42)
 
-    hist = result.metrics_history["stiefel_geodesic"]
+    hist = result.metrics_history["stiefel_frame_frobenius"]
     n = len(hist)
     head = float(np.mean(hist[: n // 5]))
     tail = float(np.mean(hist[-n // 5 :]))
