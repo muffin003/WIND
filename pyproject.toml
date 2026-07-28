@@ -25,6 +25,7 @@ dev = ["black>=24,<27", "pytest>=8,<10"]
 
 [project.scripts]
 wind-benchmark = "wind_benchmark.cli:main"
+wind-benchmark-ui = "wind_benchmark.web:main"
 
 [tool.setuptools]
 package-dir = {wind_benchmark = "src"}

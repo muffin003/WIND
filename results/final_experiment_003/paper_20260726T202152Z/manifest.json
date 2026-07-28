@@ -1,0 +1,116 @@
+{
+  "experiment": "WIND final systematic experiment",
+  "created_utc": "20260726T202152Z",
+  "profile": {
+    "name": "paper",
+    "seeds": [
+      1001,
+      1002,
+      1003,
+      1004,
+      1005,
+      1006,
+      1007,
+      1008,
+      1009,
+      1010,
+      1011,
+      1012,
+      1013,
+      1014,
+      1015,
+      1016,
+      1017,
+      1018,
+      1019,
+      1020,
+      1021,
+      1022,
+      1023,
+      1024,
+      1025,
+      1026,
+      1027,
+      1028,
+      1029,
+      1030
+    ],
+    "calibration_steps": 1500,
+    "memory_steps": 2000,
+    "zero_order_budget": 10000,
+    "zero_order_tuning_budget": 2000,
+    "geometry_steps": 1000,
+    "bootstrap_repetitions": 2000,
+    "curve_points": 201
+  },
+  "selected_studies": [
+    "calibration",
+    "memory",
+    "zeroth",
+    "geometry",
+    "dimension"
+  ],
+  "scientific_scope": {
+    "calibration": "exact finite-time MSE of constant-step SGD",
+    "memory": "noise reduction versus stale optimizer state",
+    "zeroth": "zero-order variance reduction versus information freshness at equal oracle-query budgets",
+    "geometry": "feasibility and task-aligned frame/subspace tracking",
+    "dimension": "zero-order estimation and dynamic tracking as ambient dimension grows at a fixed oracle-query budget"
+  },
+  "studies": {
+    "calibration": {
+      "run_rows": 690,
+      "summary_rows": 23,
+      "curve_rows": 69000,
+      "extras": {
+        "slopes": 4
+      },
+      "directory": "results\\final_experiment_003\\paper_20260726T202152Z\\calibration",
+      "runtime_seconds": 53.09590340000068
+    },
+    "memory": {
+      "run_rows": 1050,
+      "summary_rows": 35,
+      "curve_rows": 70000,
+      "extras": {},
+      "directory": "results\\final_experiment_003\\paper_20260726T202152Z\\memory",
+      "runtime_seconds": 59.44629910000003
+    },
+    "zeroth": {
+      "run_rows": 1800,
+      "summary_rows": 60,
+      "curve_rows": 12060,
+      "extras": {
+        "tuning": 50,
+        "selected_hyperparameters": 6,
+        "freshness_runs": 720,
+        "freshness_summary": 24
+      },
+      "directory": "results\\final_experiment_003\\paper_20260726T202152Z\\zeroth",
+      "runtime_seconds": 424.3187395999994
+    },
+    "geometry": {
+      "run_rows": 360,
+      "summary_rows": 12,
+      "curve_rows": 27000,
+      "extras": {},
+      "directory": "results\\final_experiment_003\\paper_20260726T202152Z\\geometry",
+      "runtime_seconds": 35.826965300002485
+    },
+    "dimension": {
+      "run_rows": 2160,
+      "summary_rows": 72,
+      "curve_rows": 14472,
+      "extras": {
+        "tuning": 300,
+        "selected_hyperparameters": 36,
+        "relative_runs": 1800,
+        "relative_summary": 60,
+        "dimension_slopes": 24
+      },
+      "directory": "results\\final_experiment_003\\paper_20260726T202152Z\\dimension",
+      "runtime_seconds": 664.7894694000024
+    }
+  },
+  "runtime_seconds": 1237.4784311000003
+}

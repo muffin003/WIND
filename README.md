@@ -49,13 +49,53 @@ The installable package is `wind_benchmark` and its source is in `src/`.
 The main suite currently contains 25 optimizers: 12 first-order and 13
 zero-order methods.
 
-## Run an experiment
+## Benchmark workbench
 
-Copy `experiment.example.json`, edit the grid, then run:
+### Start locally after downloading the repository
+
+Open PowerShell in the downloaded or cloned repository, then create the local
+environment, install WIND and start the workbench:
+
+```powershell
+cd "path\to\WIND"
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -e ".[gym,dev]"
+python -m wind_benchmark.web
+```
+
+The browser opens at `http://127.0.0.1:8765`. Keep the PowerShell window open
+while using the benchmark and press `Ctrl+C` to stop it. On later starts, only
+activate the existing environment and run the final module command.
+
+After reinstalling the project entry points, the shorter equivalent command is
+`wind-benchmark-ui`.
+
+The workbench exposes environments, landscapes and drifts, oracle and noise
+models, the full optimizer catalog, runner settings, metrics, result history,
+analysis tools and Gymnasium integration as separate sections. The current
+configuration remains visible in a fixed JSON inspector while you work. English
+is the default language; Russian and Chinese are available from the sidebar.
+The local interface can launch runs through the WIND engine.
+
+The same `web/` directory is also a self-contained interactive handbook. On a
+static host such as GitHub Pages it provides the complete reference, formulas,
+configuration editor, JSON download and local JSON/CSV analysis. Starting new
+benchmark runs and browsing server-side result history remain available only
+when the Python engine is connected.
+
+The legacy parameter-grid command remains available for reproducible full-suite
+experiments. Copy `experiment.example.json`, edit the grid, then run:
 
 ```powershell
 wind-benchmark --config experiment.example.json
 ```
+
+The web server uses only the Python standard library and does not add runtime
+dependencies to the package. Opening [`web/index.html`](web/index.html) directly
+still shows the interface, but launching benchmarks and reading result history
+requires `wind-benchmark-ui` so the page can reach the local WIND engine.
 
 The equivalent module command is:
 
@@ -166,6 +206,29 @@ for orthogonal `Q`. Accordingly, `neg_error` uses Frobenius frame distance for
 Stiefel tasks and principal-angle distance for Grassmann tasks. Oracle modes are
 unchanged: first-order, zero-order, hybrid, scheduled and offline replay remain
 available through the same core.
+
+The curriculum-to-transfer example treats a simplex decision as the allocation
+of a shared compute or bandwidth budget among services. A dependency-free
+Q-learning controller receives value-only feedback: the noisy scalar operating
+cost, changes in that cost, and its own previous reallocations. It never receives
+a gradient, the latent load vector, or Gym `info`. The agent learns whether to
+explore a new service-to-service transfer, repeat the last transfer, or reverse
+it, and also chooses the amount to reallocate. Training covers stationary,
+linear, cyclic, jump, and random-walk loads before transfer to a larger held-out
+mixed workload. The comparison contains only three versions of the same RL
+agent: curriculum-pretrained, stationary-pretrained, and trained from scratch on
+the target task. Its learning reward combines the next observed cost with a
+value-difference term and an $\ell_1$ switching cost. Both cost
+values come from the zero-order oracle, while clean regret is retained only for
+evaluation.
+
+```powershell
+python -m wind_benchmark.expRL --profile smoke
+python -m wind_benchmark.expRL --profile paper
+```
+
+Run-level evaluations, learning curves, learned Q tables, a manifest, and the
+summary figure are written below `results/rl_transfer_experiment/`.
 
 ## Reproducibility
 

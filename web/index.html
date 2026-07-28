@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="WIND Benchmark workbench" />
+    <title>WIND Lab — Benchmark Workbench</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Urbanist:ital,wght@0,400;0,500;0,600;0,700;1,500&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <script>
+      window.MathJax = {
+        startup: { typeset: false },
+        tex: { displayMath: [["\\[", "\\]"]], packages: { "[+]": ["ams"] } },
+        svg: { fontCache: "global" },
+      };
+    </script>
+    <script defer src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-svg.js"></script>
+    <script src="guide-content.js" defer></script>
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div>
+          <a class="brand" href="#overview" data-view-link="overview" aria-label="WIND Lab">
+            <span>WIND <b>Lab</b><small>WORKBENCH</small></span>
+          </a>
+
+          <nav class="nav-list" aria-label="Workbench navigation">
+            <button class="nav-item active" type="button" data-view-link="overview">
+              <span>01</span><b data-i18n="navOverview">Главная</b>
+            </button>
+            <button class="nav-item" type="button" data-view-link="environment">
+              <span>02</span><b data-i18n="navEnvironment">Среда</b>
+            </button>
+            <button class="nav-item" type="button" data-view-link="oracle">
+              <span>03</span><b data-i18n="navOracle">Оракул</b>
+            </button>
+            <button class="nav-item" type="button" data-view-link="optimizers">
+              <span>04</span><b data-i18n="navOptimizers">Примеры оптимизаторов</b>
+            </button>
+            <button class="nav-item" type="button" data-view-link="runner">
+              <span>05</span><b data-i18n="navRunner">Запуск</b>
+            </button>
+            <button class="nav-item" type="button" data-view-link="results">
+              <span>06</span><b data-i18n="navResults">Результаты</b>
+            </button>
+            <button class="nav-item" id="analysis-nav" type="button" data-view-link="analysis" hidden>
+              <span>07</span><b data-i18n="navAnalysis">Анализ</b>
+            </button>
+            <button class="nav-item" type="button" data-view-link="gym">
+              <span>08</span><b data-i18n="navGym">RL: Gymnasium</b>
+            </button>
+          </nav>
+        </div>
+
+        <div class="sidebar-footer">
+          <div class="language-switcher" aria-label="Language">
+            <button type="button" data-lang="ru">RU</button>
+            <button type="button" data-lang="en" class="active">EN</button>
+            <button type="button" data-lang="zh">中文</button>
+          </div>
+          <div class="engine-status" id="engine-status">
+            <i></i>
+            <span><b>WIND Engine</b><small id="engine-label">connecting…</small></span>
+          </div>
+          <a href="https://github.com/muffin003/WIND" target="_blank" rel="noopener noreferrer" data-i18n="documentation">Документация ↗</a>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <div class="workbench-grid">
+          <div class="views">
+            <section class="view active" data-view="overview">
+              <header class="view-heading hero-heading">
+                <span class="eyebrow" data-i18n="controlCenter">ОБЗОР КОНФИГУРАЦИИ</span>
+                <h1 data-i18n="overviewTitle">WIND Benchmark</h1>
+                <p data-i18n="overviewDescription">
+                  Настройка среды, оракула, алгоритма, запуска, метрик и выходных данных.
+                </p>
+              </header>
+              <div class="page-guide" data-guide-page="overview"></div>
+
+              <div class="capability-grid">
+                <article class="capability-card" data-open-view="environment">
+                  <span class="capability-index">ENV</span><strong>8</strong>
+                  <h2 data-i18n="landscapes">Ландшафтов</h2>
+                  <p data-i18n="landscapesList">Quadratic, P-norm, Rosenbrock, Simplex, Stiefel и другие.</p>
+                </article>
+                <article class="capability-card" data-open-view="environment">
+                  <span class="capability-index">Δθ</span><strong>8</strong>
+                  <h2 data-i18n="driftModels">Моделей дрейфа</h2>
+                  <p data-i18n="driftList">От stationary до adaptive и manifold-aware динамики.</p>
+                </article>
+                <article class="capability-card" data-open-view="oracle">
+                  <span class="capability-index">OBS</span><strong>5</strong>
+                  <h2 data-i18n="oracleModes">Режимов оракула</h2>
+                  <p data-i18n="oracleList">First-order, zero-order, hybrid, scheduled и offline replay.</p>
+                </article>
+                <article class="capability-card" data-open-view="optimizers">
+                  <span class="capability-index">ALG</span><strong>25</strong>
+                  <h2 data-i18n="optimizerCatalog">Примеров оптимизаторов</h2>
+                  <p data-i18n="optimizerList">12 first-order и 13 zero-order реализаций.</p>
+                </article>
+                <article class="capability-card" data-open-view="runner">
+                  <span class="capability-index">MET</span><strong>10</strong>
+                  <h2 data-i18n="metrics">Метрик</h2>
+                  <p data-i18n="metricsList">Ошибка, regret, Lyapunov, адаптивность и query efficiency.</p>
+                </article>
+                <article class="capability-card" data-open-view="gym">
+                  <span class="capability-index">RL</span><strong>4</strong>
+                  <h2 data-i18n="geometries">Геометрии действий</h2>
+                  <p data-i18n="geometryList">Euclidean, Simplex, Stiefel и Grassmann для Gymnasium.</p>
+                </article>
+              </div>
+
+              <section class="architecture-card">
+                <div class="section-title">
+                  <div><span>WORKFLOW</span><h2 data-i18n="benchmarkPipeline">Конвейер бенчмарка</h2></div>
+                  <button type="button" data-open-view="environment" data-i18n="configure">Настроить</button>
+                </div>
+                <div class="pipeline">
+                  <button type="button" data-open-view="environment"><i>01</i><b data-i18n="environment">Среда</b><small id="pipeline-environment">Quadratic · 5D</small></button>
+                  <span>→</span>
+                  <button type="button" data-open-view="oracle"><i>02</i><b data-i18n="oracle">Оракул</b><small id="pipeline-oracle">First-order</small></button>
+                  <span>→</span>
+                  <button type="button" data-open-view="optimizers"><i>03</i><b data-i18n="optimizer">Пример оптимизатора</b><small id="pipeline-optimizer">Не выбраны</small></button>
+                  <span>→</span>
+                  <button type="button" data-open-view="runner"><i>04</i><b data-i18n="runner">Runner</b><small id="pipeline-runner">500 steps</small></button>
+                  <span>→</span>
+                  <button type="button" data-open-view="results"><i>05</i><b data-i18n="result">Результат</b><small>JSON · CSV · Plotly</small></button>
+                </div>
+              </section>
+            </section>
+
+            <section class="view" data-view="environment">
+              <header class="view-heading">
+                <span class="eyebrow">ENVIRONMENT</span>
+                <h1 data-i18n="environmentTitle">Динамическая среда</h1>
+                <p data-i18n="environmentDescription">Ландшафт задаёт геометрию задачи, а drift — движение скрытого оптимума θₜ.</p>
+              </header>
+              <div class="page-guide" data-guide-page="environment"></div>
+
+              <section class="work-panel">
+                <div class="section-title"><div><span>01</span><h2 data-i18n="landscape">Ландшафт</h2></div><b id="landscape-count">8 types</b></div>
+                <div class="choice-grid landscape-grid" id="landscape-grid"></div>
+                <div class="inline-fields environment-fields" id="landscape-fields">
+                  <label><span data-i18n="dimension">Размерность</span><input id="environment-dim" type="number" min="1" value="5" /></label>
+                  <label><span id="landscape-param-a-label">Condition number</span><input id="landscape-param-a" type="number" step="any" value="5" /></label>
+                  <label><span id="landscape-param-b-label">Secondary parameter</span><input id="landscape-param-b" type="number" step="any" value="1" /></label>
+                  <label><span data-i18n="initialTheta">Начальное θ₀</span><input id="initial-theta" type="text" placeholder="auto · 0 or 0, 0, …" /></label>
+                </div>
+              </section>
+
+              <section class="work-panel">
+                <div class="section-title"><div><span>02</span><h2 data-i18n="drift">Дрейф</h2></div><b>θₜ → θₜ₊₁</b></div>
+                <div class="choice-grid drift-grid" id="drift-grid"></div>
+                <div class="inline-fields" id="drift-fields">
+                  <label><span id="drift-param-a-label">Sigma</span><input id="drift-param-a" type="number" step="any" value="0.02" /></label>
+                  <label><span id="drift-param-b-label">Sparsity</span><input id="drift-param-b" type="number" step="any" value="0" /></label>
+                  <label id="drift-param-c-field" hidden><span id="drift-param-c-label">Center</span><input id="drift-param-c" type="number" step="any" value="0" /></label>
+                  <label id="drift-mode-field" hidden><span data-i18n="adaptiveMode">Режим адаптации</span><select id="drift-mode"><option value="pursuit">pursuit</option><option value="evasion">evasion</option></select></label>
+                  <label><span data-i18n="bounds">Границы x</span><div class="joined-inputs"><input id="bound-low" type="number" value="-10" /><input id="bound-high" type="number" value="10" /></div></label>
+                </div>
+              </section>
+            </section>
+
+            <section class="view" data-view="oracle">
+              <header class="view-heading">
+                <span class="eyebrow">ORACLE</span>
+                <h1 data-i18n="oracleTitle">Оракул</h1>
+                <p data-i18n="oracleDescription">Оракул определяет, какую информацию алгоритм получает на каждом шаге.</p>
+              </header>
+              <div class="page-guide" data-guide-page="oracle"></div>
+
+              <section class="work-panel">
+                <div class="section-title"><div><span>01</span><h2 data-i18n="oracleMode">Режим оракула</h2></div><b>5 modes</b></div>
+                <div class="oracle-grid" id="oracle-grid"></div>
+                <div class="oracle-extra" id="oracle-extra">
+                  <label class="toggle-row"><span><b data-i18n="blindValue">Скрывать значение функции</b><small>Strict first-order compliance</small></span><input id="blind-value" type="checkbox" checked /></label>
+                  <label id="schedule-field"><span data-i18n="schedule">Расписание</span><input id="oracle-schedule" type="text" value="first-order:100, zero-order:50" /></label>
+                  <label id="offline-field"><span data-i18n="recordedTrajectory">Файл с траекторией θ</span><input id="offline-path" type="text" value="results/reference.json" /></label>
+                </div>
+              </section>
+
+              <section class="work-panel">
+                <div class="section-title"><div><span>02</span><h2 data-i18n="noiseChannels">Каналы шума</h2></div><b>6 models</b></div>
+                <div class="noise-grid">
+                  <div class="noise-channel">
+                    <label><span data-i18n="valueNoise">Шум значения</span><select id="value-noise-type"></select></label>
+                    <div class="noise-params" id="value-noise-params"></div>
+                  </div>
+                  <div class="noise-channel">
+                    <label><span data-i18n="gradientNoise">Шум градиента</span><select id="grad-noise-type"></select></label>
+                    <div class="noise-params" id="grad-noise-params"></div>
+                  </div>
+                </div>
+              </section>
+            </section>
+
+            <section class="view" data-view="optimizers">
+              <header class="view-heading">
+                <span class="eyebrow">OPTIMIZER EXAMPLES</span>
+                <h1 data-i18n="optimizersTitle">Примеры оптимизаторов</h1>
+                <p data-i18n="optimizersDescription">Можно выбрать несколько реализаций или оставить список пустым.</p>
+              </header>
+              <div class="page-guide" data-guide-page="optimizers"></div>
+
+              <section class="work-panel optimizer-catalog-panel">
+                <div class="catalog-toolbar">
+                  <label class="search-box"><span>Q</span><input id="optimizer-search" type="search" placeholder="Поиск по 25 методам…" /></label>
+                  <div class="catalog-actions">
+                    <span id="optimizer-selection-count">0 выбрано</span>
+                    <button class="outline-button" id="clear-optimizers" type="button" data-i18n="clearSelection">Снять выбор</button>
+                    <div class="segmented"><button class="active" data-order-filter="all">ALL</button><button data-order-filter="first-order">FO</button><button data-order-filter="zero-order">ZO</button></div>
+                  </div>
+                </div>
+                <div class="optimizer-catalog" id="optimizer-catalog"></div>
+              </section>
+            </section>
+
+            <section class="view" data-view="runner">
+              <header class="view-heading">
+                <span class="eyebrow">RUN</span>
+                <h1 data-i18n="runnerTitle">Параметры запуска</h1>
+                <p data-i18n="runnerDescription">Шаги, seeds, выходной каталог, запись траектории и набор метрик.</p>
+              </header>
+              <div class="page-guide" data-guide-page="runner"></div>
+
+              <section class="work-panel">
+                <div class="section-title"><div><span>01</span><h2 data-i18n="execution">Выполнение</h2></div><b id="run-mode-label">SINGLE</b></div>
+                <div class="inline-fields runner-fields">
+                  <label><span data-i18n="steps">Шаги</span><input id="runner-steps" type="number" min="1" value="500" /></label>
+                  <label><span>Seeds</span><input id="runner-seeds" type="text" value="42" /></label>
+                  <label class="wide-field"><span data-i18n="outputDirectory">Каталог результатов</span><input id="runner-output" type="text" value="results/workbench" /></label>
+                  <label><span>Tail fraction</span><input id="tail-fraction" type="number" min="0.01" max="1" step="0.05" value="0.2" /></label>
+                  <label><span data-i18n="initialX">Стартовая точка x₀</span><input id="runner-initial-x" type="text" placeholder="auto · 0 or 0, 0, …" /></label>
+                </div>
+                <div class="runner-toggles">
+                  <label><input id="record-trajectory" type="checkbox" checked /><span><b data-i18n="recordTrajectory">Записывать траекторию</b><small>xₜ, θₜ, action</small></span></label>
+                  <label><input id="export-csv" type="checkbox" /><span><b>CSV export</b><small>Long-format dataset</small></span></label>
+                  <label><input id="normalize-regret" type="checkbox" /><span><b data-i18n="normalizeRegret">Нормировать regret</b><small>By path variation</small></span></label>
+                </div>
+                <div class="formula-slot" id="runner-formula"></div>
+              </section>
+
+              <section class="work-panel">
+                <div class="section-title"><div><span>02</span><h2 data-i18n="metricSet">Набор метрик</h2></div><button type="button" id="select-core-metrics">CORE SET</button></div>
+                <div class="metrics-grid" id="metrics-grid"></div>
+              </section>
+
+              <section class="launch-panel">
+                <div><span data-i18n="readyToRun">Готово к запуску</span><h2 id="launch-summary">Оптимизаторов: 0 · Quadratic · First-order</h2><p id="launch-detail">Выберите хотя бы один оптимизатор для запуска</p></div>
+                <button id="run-benchmark" type="button"><span data-i18n="runBenchmark">Запустить benchmark</span><b>↗</b></button>
+              </section>
+
+              <section class="job-panel" id="job-panel" hidden>
+                <div class="job-top"><span id="job-state">RUNNING</span><strong id="job-percent">0%</strong></div>
+                <div class="job-track"><span id="job-progress"></span></div>
+                <pre id="job-log">Preparing benchmark…</pre>
+                <button id="cancel-job" type="button" data-i18n="stop">Остановить</button>
+              </section>
+            </section>
+
+            <section class="view" data-view="results">
+              <header class="view-heading">
+                <span class="eyebrow">RESULTS</span>
+                <h1 data-i18n="resultsTitle">Результаты</h1>
+                <p data-i18n="resultsDescription">Сохранённые JSON, CSV, метрики, траектории и параметры среды.</p>
+              </header>
+              <div class="page-guide" data-guide-page="results"></div>
+              <section class="work-panel">
+                <div class="results-toolbar">
+                  <div class="segmented"><button class="active">ALL</button><button>JSON</button><button>CSV</button></div>
+                  <div class="results-actions">
+                    <label class="outline-button result-upload">
+                      <span data-i18n="loadForAnalysis">Загрузить для анализа</span>
+                      <input id="analysis-file" type="file" accept=".json,.csv,application/json,text/csv" />
+                    </label>
+                    <button id="refresh-results" class="outline-button" data-i18n="refresh">Обновить</button>
+                  </div>
+                </div>
+                <div class="results-list" id="results-list"><div class="empty-state" data-i18n="loadingResults">Загрузка результатов…</div></div>
+              </section>
+            </section>
+
+            <section class="view" data-view="analysis">
+              <header class="view-heading">
+                <span class="eyebrow">ANALYSIS</span>
+                <h1 data-i18n="analysisTitle">Анализ</h1>
+                <p data-i18n="analysisDescription">Временные ряды, сравнение алгоритмов, распределения и траектории.</p>
+              </header>
+              <div class="page-guide" data-guide-page="analysis"></div>
+              <div class="analysis-source">
+                <span>INPUT DATA</span>
+                <b id="analysis-source-name">—</b>
+                <small id="analysis-source-meta">—</small>
+              </div>
+              <div class="analysis-grid">
+                <article><span>01 / TIME</span><div class="mini-chart line-chart"><i></i><i></i><i></i></div><h2>Metric over time</h2><p>Mean, 95% CI and log scale for tracking metrics.</p></article>
+                <article><span>02 / RANK</span><div class="mini-chart radar-chart"><i></i><i></i><i></i></div><h2>Robustness radar</h2><p>Normalized algorithm profiles across metrics.</p></article>
+                <article><span>03 / DIST</span><div class="mini-chart box-chart"><i></i><i></i><i></i></div><h2>Seed distribution</h2><p>Box comparison with every individual seed.</p></article>
+                <article><span>04 / SPACE</span><div class="mini-chart trajectory-chart"><i></i><i></i><i></i></div><h2>2D / 3D trajectory</h2><p>Optimizer path against moving ground truth θₜ.</p></article>
+              </div>
+            </section>
+
+            <section class="view" data-view="gym">
+              <header class="view-heading">
+                <span class="eyebrow">GYMNASIUM</span>
+                <h1 data-i18n="gymTitle">RL: Gymnasium</h1>
+                <p data-i18n="gymDescription">Параметры action space, reward и геометрии ограничений.</p>
+              </header>
+              <div class="page-guide" data-guide-page="gym"></div>
+              <section class="work-panel">
+                <div class="section-title"><div><span>ENV</span><h2>WindGymEnv</h2></div><b>GYMNASIUM 1.x</b></div>
+                <div class="inline-fields gym-fields">
+                  <label><span>Episode horizon</span><input id="gym-horizon" type="number" value="200" /></label>
+                  <label><span>Action mode</span><select id="gym-action"><option value="absolute">absolute</option><option value="delta">delta</option></select></label>
+                  <label><span>Reward</span><select id="gym-reward"><option value="neg_regret">negative regret</option><option value="neg_error">negative error</option></select></label>
+                  <label><span>Geometry</span><select id="gym-geometry"><option value="auto">auto</option><option value="euclidean">euclidean</option><option value="simplex">simplex</option><option value="stiefel">stiefel</option><option value="grassmann">grassmann</option></select></label>
+                  <label><span>Max step</span><input id="gym-max-step" type="number" step="any" value="1" /></label>
+                  <label><span>Divergence threshold</span><input id="gym-diverge" type="number" step="any" placeholder="None" /></label>
+                  <label><span data-i18n="gymBounds">Границы Gym x</span><div class="joined-inputs"><input id="gym-bound-low" type="number" step="any" value="-10" /><input id="gym-bound-high" type="number" step="any" value="10" /></div></label>
+                  <label><span data-i18n="gymInitialX">Начальное Gym x₀</span><input id="gym-initial-x" type="text" placeholder="auto · 0 or 0, 0, …" /></label>
+                </div>
+                <div class="formula-slot" id="gym-formula"></div>
+              </section>
+              <section class="code-card"><header><span>PYTHON API</span><button id="copy-gym-code">COPY</button></header><pre id="gym-code"></pre></section>
+            </section>
+          </div>
+
+          <aside class="inspector">
+            <section class="inspector-card">
+              <header><div><span>LIVE WORKSPACE</span><h2 data-i18n="currentConfiguration">Current configuration</h2></div><div class="inspector-actions"><button id="download-workspace-json" data-i18n="downloadJson">DOWNLOAD</button><button id="copy-workspace-json">COPY</button></div></header>
+              <div class="workspace-signature">
+                <span id="signature-landscape">Quadratic / 5D</span>
+                <span id="signature-oracle">First-order</span>
+                <span id="signature-optimizer">Не выбраны</span>
+              </div>
+              <pre><code id="workspace-json"></code></pre>
+              <footer><span><i></i><b data-i18n="liveSync">Синхронизировано</b></span><small id="workspace-lines">—</small></footer>
+            </section>
+          </aside>
+        </div>
+      </main>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>

@@ -1,0 +1,7 @@
+dim,method,family,directions,learning_rate,smoothing,dimension_constant,tuning_score,failure_rate,selected
+20,FirstOrderReference,first_order,1,0.04,0.0,,0.012553506219519317,0.0,True
+20,SPSA-m1,spsa,1,0.020000000000000004,0.1,0.4,0.02793825283355226,0.0,True
+20,Gaussian-m1,gaussian,1,0.020000000000000004,0.3,0.4,0.030806356601598344,0.0,True
+20,Gaussian-m5,gaussian,5,0.1,0.3,0.4,0.03219774879061176,0.0,True
+20,Gaussian-m20,gaussian,20,0.2,0.3,0.2,0.04645554661083199,0.0,True
+20,CoordinateCentral,coordinate,1,0.04,0.1,,0.10721107577306314,0.0,True
