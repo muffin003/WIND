@@ -12,6 +12,7 @@ build/
 
 # Local manuscripts, references, generated figures, notebooks, and run output.
 /local/
+*.tex
 
 *.csv
 *.json

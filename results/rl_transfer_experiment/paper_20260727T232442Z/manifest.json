@@ -1,0 +1,109 @@
+{
+  "action_mode": "delta",
+  "application_proxy": "adaptive compute-resource allocation",
+  "control_actions": [
+    [
+      0.02,
+      "explore"
+    ],
+    [
+      0.02,
+      "repeat"
+    ],
+    [
+      0.02,
+      "reverse"
+    ],
+    [
+      0.06,
+      "explore"
+    ],
+    [
+      0.06,
+      "repeat"
+    ],
+    [
+      0.06,
+      "reverse"
+    ],
+    [
+      0.15,
+      "explore"
+    ],
+    [
+      0.15,
+      "repeat"
+    ],
+    [
+      0.15,
+      "reverse"
+    ],
+    [
+      0.3,
+      "explore"
+    ],
+    [
+      0.3,
+      "repeat"
+    ],
+    [
+      0.3,
+      "reverse"
+    ]
+  ],
+  "controller": "dimension-invariant value-only tabular Q-learning",
+  "elapsed_seconds": 359.94755019999866,
+  "experiment": "gymnasium_curriculum_transfer",
+  "files": {
+    "evaluation": "evaluation_runs.csv",
+    "figure": "rl_transfer.png",
+    "fine_tuning": "fine_tuning.csv",
+    "policies": "policies.json",
+    "pretraining": "pretraining.csv",
+    "summary": "summary.csv"
+  },
+  "geometry": "simplex",
+  "learning_reward": "-noisy_value_t+1 + 2 * (noisy_value_t - noisy_value_t+1) - switching_cost * reallocation_l1",
+  "oracle": "zero-order-value-only",
+  "policy_access": {
+    "gradient": false,
+    "gym_info": false,
+    "latent_theta": false,
+    "noisy_value": true,
+    "observation": true,
+    "reward_history": true
+  },
+  "profile": {
+    "evaluation_seeds": 30,
+    "fine_tune_checkpoints": [
+      0,
+      10,
+      50,
+      100,
+      200
+    ],
+    "fine_tune_episodes": 200,
+    "name": "paper",
+    "pretrain_episodes": 2000,
+    "train_dimensions": [
+      4,
+      6,
+      8
+    ],
+    "train_horizon": 160,
+    "transfer_dimension": 12,
+    "transfer_horizon": 300
+  },
+  "resource_interpretation": "simplex coordinates are service budget shares",
+  "seed": 20260727,
+  "switching_cost": 0.02,
+  "training_scenarios": [
+    "stationary",
+    "linear",
+    "cyclic",
+    "jump",
+    "random_walk"
+  ],
+  "transfer_noise": "heavy_tailed",
+  "transfer_scenario": "mixed"
+}

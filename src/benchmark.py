@@ -454,8 +454,20 @@ class ExperimentResult:
             )
 
         # Convert trajectories to numpy arrays
-        x_array = np.array(self.trajectory["x"])
-        theta_array = np.array(self.trajectory["theta"])
+        metric_steps = max(
+            (len(values) for values in self.metrics_history.values()), default=0
+        )
+        if metric_steps < 1:
+            raise ValueError("Metric history is empty; there is nothing to export.")
+
+        # The trajectory includes a pre-run snapshot in addition to one sample
+        # per evaluated step. Keep the last ``metric_steps`` samples so every
+        # exported point is aligned with a metric value.
+        x_array = np.array(self.trajectory["x"][-metric_steps:])
+        theta_array = np.array(self.trajectory["theta"][-metric_steps:])
+        if x_array.ndim > 2:
+            x_array = x_array.reshape(metric_steps, -1)
+            theta_array = theta_array.reshape(metric_steps, -1)
         steps, dim = x_array.shape
 
         # Build rows
@@ -523,10 +535,10 @@ class ExperimentResult:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         df.to_csv(output_path, index=False)
 
-        print(f"✅ Saved to single CSV: {output_path}")
-        print(f"   → Shape: {df.shape[0]:,} rows × {df.shape[1]} columns")
-        print(f"   → Includes ground truth theta_value column")
-        print(f"   → File size: {output_path.stat().st_size / 1024:.1f} KB")
+        print(f"Saved to single CSV: {output_path}")
+        print(f"   Shape: {df.shape[0]:,} rows x {df.shape[1]} columns")
+        print("   Includes ground truth theta_value column")
+        print(f"   File size: {output_path.stat().st_size / 1024:.1f} KB")
 
         return output_path
 
