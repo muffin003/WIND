@@ -17,32 +17,11 @@ from .core import (
     make_environment,
     make_noise,
 )
-from .experiment import (
-    AMSGrad,
-    Adam,
-    AdamW,
-    AcceleratedSPSA,
-    AdaptiveLR,
-    CMAES,
-    FDSA,
-    FiniteDiffCentral,
-    GPUCB,
-    HeavyBall,
-    KieferWolfowitz,
-    NedicSubgradient,
-    Nesterov,
-    OnePointSPSA,
-    ProxSGD,
-    QuadraticInterpolation,
-    RDA,
-    RandomSearch,
-    SGD,
-    SGDPolyak,
-    SMD,
-    SPSA,
-    SignSGD,
-    ZOSGD,
-    ZOSignSGD,
+from .catalog import (
+    OPTIMIZER_SPECS,
+    accepted_optimizer_names,
+    create_optimizer,
+    resolve_optimizer_spec,
 )
 from .metrics import (
     AdaptivityMetric,
@@ -99,31 +78,8 @@ NOISES = {
 ORACLES = {"first-order", "zero-order", "hybrid", "scheduled", "offline"}
 
 OPTIMIZERS = {
-    "SGD": (SGD, "first-order"),
-    "SGD_Polyak": (SGDPolyak, "first-order"),
-    "HeavyBall": (HeavyBall, "first-order"),
-    "Nesterov": (Nesterov, "first-order"),
-    "Adam": (Adam, "first-order"),
-    "AdamW": (AdamW, "first-order"),
-    "AMSGrad": (AMSGrad, "first-order"),
-    "SMD": (SMD, "first-order"),
-    "RDA": (RDA, "first-order"),
-    "ProxSGD": (ProxSGD, "first-order"),
-    "AdaptiveLR": (AdaptiveLR, "first-order"),
-    "SignSGD": (SignSGD, "first-order"),
-    "RandomSearch": (RandomSearch, "zero-order"),
-    "OnePointSPSA": (OnePointSPSA, "zero-order"),
-    "FiniteDiffCentral": (FiniteDiffCentral, "zero-order"),
-    "FDSA": (FDSA, "zero-order"),
-    "SPSA": (SPSA, "zero-order"),
-    "ZOSGD": (ZOSGD, "zero-order"),
-    "ZOSignSGD": (ZOSignSGD, "zero-order"),
-    "QuadraticInterpolation": (QuadraticInterpolation, "zero-order"),
-    "KieferWolfowitz": (KieferWolfowitz, "zero-order"),
-    "NedicSubgradient": (NedicSubgradient, "zero-order"),
-    "AcceleratedSPSA": (AcceleratedSPSA, "zero-order"),
-    "CMAES": (CMAES, "zero-order"),
-    "GPUCB": (GPUCB, "zero-order"),
+    spec.canonical_name: (spec.optimizer_class, spec.oracle_type)
+    for spec in OPTIMIZER_SPECS
 }
 
 METRICS = {
@@ -205,9 +161,10 @@ def validate_workbench_config(payload: Any) -> Dict[str, Any]:
     if not all(isinstance(optimizer, dict) for optimizer in optimizer_configs):
         raise WorkbenchConfigurationError("Each optimizer must be an object")
     names = [optimizer.get("name") for optimizer in optimizer_configs]
-    if any(name not in OPTIMIZERS for name in names):
+    if any(name not in accepted_optimizer_names() for name in names):
         raise WorkbenchConfigurationError("Unknown optimizer")
-    if len(names) != len(set(names)):
+    canonical_names = [resolve_optimizer_spec(name).canonical_name for name in names]
+    if len(canonical_names) != len(set(canonical_names)):
         raise WorkbenchConfigurationError("Optimizer selection contains duplicates")
     if any(
         not isinstance(optimizer.get("params", {}), dict)
@@ -215,7 +172,7 @@ def validate_workbench_config(payload: Any) -> Dict[str, Any]:
     ):
         raise WorkbenchConfigurationError("optimizer.params must be an object")
 
-    optimizer_orders = [OPTIMIZERS[name][1] for name in names]
+    optimizer_orders = [resolve_optimizer_spec(name).oracle_type for name in names]
     oracle_type = oracle["type"]
     if "first-order" in optimizer_orders and oracle_type == "zero-order":
         raise WorkbenchConfigurationError(
@@ -378,14 +335,14 @@ def _make_oracle(config: Dict[str, Any], environment, seed: int, project_root: P
 
 
 def _make_optimizer(config: Dict[str, Any]):
-    name = config["name"]
-    optimizer_class, oracle_type = OPTIMIZERS[name]
+    requested_name = config["name"]
+    spec = resolve_optimizer_spec(requested_name)
     params = dict(config.get("params", {}))
-    if name == "CMAES" and not params.get("population_size"):
+    if spec.canonical_name == "EliteCovarianceSearch" and not params.get(
+        "population_size"
+    ):
         params.pop("population_size", None)
-    optimizer = optimizer_class(**params)
-    optimizer.oracle_type = oracle_type
-    return optimizer
+    return create_optimizer(requested_name, params)
 
 
 def _make_metrics(names: list[str], environment, runner: Dict[str, Any]):
@@ -508,7 +465,8 @@ def run_workbench(config: Dict[str, Any], project_root: Path) -> Dict[str, Any]:
                 ),
                 seed=seed,
             )
-            optimizer_name = optimizer_config["name"]
+            requested_name = optimizer_config["name"]
+            optimizer_name = optimizer.canonical_name
             stem = f"{optimizer_name}_seed{seed}"
             json_path = output_dir / f"{stem}.json"
             csv_path = (
@@ -518,6 +476,10 @@ def run_workbench(config: Dict[str, Any], project_root: Path) -> Dict[str, Any]:
             results.append(
                 {
                     "optimizer": optimizer_name,
+                    "requested_alias": (
+                        requested_name if requested_name != optimizer_name else None
+                    ),
+                    "implementation_id": optimizer.implementation_id,
                     "seed": seed,
                     "status": result.status,
                     "runtime": result.runtime,
@@ -536,13 +498,22 @@ def run_workbench(config: Dict[str, Any], project_root: Path) -> Dict[str, Any]:
                 flush=True,
             )
 
-    optimizer_names = [optimizer["name"] for optimizer in optimizer_configs]
+    optimizer_names = [
+        resolve_optimizer_spec(optimizer["name"]).canonical_name
+        for optimizer in optimizer_configs
+    ]
+    requested_aliases = {
+        canonical_name: optimizer["name"]
+        for canonical_name, optimizer in zip(optimizer_names, optimizer_configs)
+        if optimizer["name"] != canonical_name
+    }
     summary = {
         "status": "SUCCESS",
         "optimizer": (
             optimizer_names[0] if len(optimizer_names) == 1 else optimizer_names
         ),
         "optimizers": optimizer_names,
+        "requested_aliases": requested_aliases,
         "environment": config["environment"],
         "oracle": config["oracle"]["type"],
         "metrics": config["metrics"],

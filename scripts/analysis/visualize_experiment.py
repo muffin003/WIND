@@ -7,6 +7,21 @@ import matplotlib.colors as mcolors
 import warnings
 import os
 
+LEGACY_RESULT_LABELS = {
+    "Nesterov": "HeavyBall (legacy Nesterov alias)",
+    "AdamW": "CoupledL2Adam",
+    "OnePointSPSA": "OnePointTemporalSecant",
+    "FDSA": "NormalizedRandomSecant",
+    "SPSA": "ScaledTemporalSecant",
+    "ZOSGD": "GaussianTemporalSecant",
+    "ZOSignSGD": "SignedGaussianTemporalSecant",
+    "KieferWolfowitz": "ShrinkingTemporalSecant",
+    "NedicSubgradient": "DiminishingGaussianSecant",
+    "AcceleratedSPSA": "MomentumTemporalSecant",
+    "CMAES": "EliteCovarianceSearch",
+    "GPUCB": "DistanceScaledExploration",
+}
+
 # -----------------------------------------------------------------------------
 # 1. CONFIGURATION & STYLE
 # -----------------------------------------------------------------------------
@@ -57,9 +72,17 @@ class ComprehensiveVisualizer:
         try:
             df = pd.read_csv(self.file_path)
 
+            # Preserve raw files while displaying every historical label under a
+            # description of the update that actually generated the row.
+            if "requested_alias" not in df:
+                df["requested_alias"] = df["algorithm"].where(
+                    df["algorithm"].isin(LEGACY_RESULT_LABELS)
+                )
+            df["algorithm"] = df["algorithm"].replace(LEGACY_RESULT_LABELS)
+
             # --- FILTERING: REMOVE REDUNDANT ALGORITHMS ---
-            # Removing KieferWolfowitz and FiniteDiffCentral as requested
-            excluded_algos = ["KieferWolfowitz", "FiniteDiffCentral"]
+            # Removing the shrinking temporal secant and coordinate buffer as requested
+            excluded_algos = ["ShrinkingTemporalSecant", "FiniteDiffCentral"]
             df = df[~df["algorithm"].isin(excluded_algos)]
 
             # Numeric conversion
@@ -72,9 +95,10 @@ class ComprehensiveVisualizer:
                 "SGD",
                 "SGD_Polyak",
                 "HeavyBall",
-                "Nesterov",
+                "HeavyBall (legacy Nesterov alias)",
+                "LookaheadNesterov",
                 "Adam",
-                "AdamW",
+                "CoupledL2Adam",
                 "AMSGrad",
                 "SMD",
                 "RDA",
@@ -86,16 +110,16 @@ class ComprehensiveVisualizer:
             # Note: Removed excluded algos from this set
             zero_order_set = {
                 "RandomSearch",
-                "OnePointSPSA",
-                "FDSA",
-                "SPSA",
-                "ZOSGD",
-                "ZOSignSGD",
+                "OnePointTemporalSecant",
+                "NormalizedRandomSecant",
+                "ScaledTemporalSecant",
+                "GaussianTemporalSecant",
+                "SignedGaussianTemporalSecant",
                 "QuadraticInterpolation",
-                "NedicSubgradient",
-                "AcceleratedSPSA",
-                "CMAES",
-                "GPUCB",
+                "DiminishingGaussianSecant",
+                "MomentumTemporalSecant",
+                "EliteCovarianceSearch",
+                "DistanceScaledExploration",
             }
 
             def classify_algo(name):
@@ -108,7 +132,7 @@ class ComprehensiveVisualizer:
                     # Fallback
                     if any(
                         x in clean_name
-                        for x in ["SPSA", "ZO", "Search", "CMA", "Finite", "Kiefer"]
+                        for x in ["Secant", "Search", "Finite", "Covariance"]
                     ):
                         return "Zero-Order"
                     return "First-Order"

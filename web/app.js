@@ -60,9 +60,9 @@ const OPTIMIZERS = [
   ["SGD", "first-order", { lr: 0.1, momentum: 0 }, "vₜ = μvₜ₋₁ − ηgₜ;  xₜ₊₁ = xₜ + vₜ"],
   ["SGD_Polyak", "first-order", { lr: 0.1 }, "zₜ = xₜ − ηgₜ;  x̄ₜ = (1 − 1/t)x̄ₜ₋₁ + zₜ/t"],
   ["HeavyBall", "first-order", { lr: 0.1, beta: 0.9 }, "vₜ = βvₜ₋₁ − ηgₜ;  xₜ₊₁ = xₜ + vₜ"],
-  ["Nesterov", "first-order", { lr: 0.05, beta: 0.9 }, "vₜ = βvₜ₋₁ − η∇f(xₜ + βvₜ₋₁);  xₜ₊₁ = xₜ + vₜ"],
+  ["LookaheadNesterov", "first-order", { lr: 0.05, beta: 0.9 }, "zₜ₊₁ = yₜ − ηgₜ;  yₜ₊₁ = zₜ₊₁ + β(zₜ₊₁ − zₜ)"],
   ["Adam", "first-order", { lr: 0.001, beta1: 0.9, beta2: 0.999, eps: 1e-8 }, "mₜ = β₁mₜ₋₁ + (1−β₁)gₜ;  vₜ = β₂vₜ₋₁ + (1−β₂)gₜ²;  xₜ₊₁ = xₜ − ηm̂ₜ/(√v̂ₜ+ε)"],
-  ["AdamW", "first-order", { lr: 0.001, beta1: 0.9, beta2: 0.999, eps: 1e-8, weight_decay: 0.01 }, "g̃ₜ = gₜ + λxₜ;  xₜ₊₁ = xₜ − ηm̂(g̃ₜ)/(√v̂(g̃ₜ)+ε)"],
+  ["CoupledL2Adam", "first-order", { lr: 0.001, beta1: 0.9, beta2: 0.999, eps: 1e-8, weight_decay: 0.01 }, "g̃ₜ = gₜ + λxₜ;  xₜ₊₁ = xₜ − ηm̂(g̃ₜ)/(√v̂(g̃ₜ)+ε)"],
   ["AMSGrad", "first-order", { lr: 0.001, beta1: 0.9, beta2: 0.999, eps: 1e-8 }, "v̂ₜ = max(v̂ₜ₋₁, vₜ);  xₜ₊₁ = xₜ − ηm̂ₜ/(√v̂ₜ+ε)"],
   ["SMD", "first-order", { lr: 0.1 }, "xₜ₊₁,ᵢ = xₜ,ᵢ exp(−ηgₜ,ᵢ) / Σⱼ xₜ,ⱼ exp(−ηgₜ,ⱼ)"],
   ["RDA", "first-order", { lr: 0.1, lambda_reg: 0.01 }, "Gₜ = Σₛ₌₁ᵗ gₛ;  xₜ₊₁ = soft(−ηGₜ, ηλt)"],
@@ -70,18 +70,18 @@ const OPTIMIZERS = [
   ["AdaptiveLR", "first-order", { lr0: 0.1 }, "ηₜ = η₀/(1+‖gₜ‖₂);  xₜ₊₁ = xₜ − ηₜgₜ"],
   ["SignSGD", "first-order", { lr: 0.05 }, "xₜ₊₁ = xₜ − η sign(gₜ)"],
   ["RandomSearch", "zero-order", { lr: 0.1, scale: 0.5 }, "xₜ₊₁ = xbest + σ εₜ,  εₜ ~ N(0,I)"],
-  ["OnePointSPSA", "zero-order", { lr: 0.005, perturb: 0.1 }, "ĝₜ = [f(xₜ+cΔₜ)−f(xₜ)]Δₜ/c;  xₜ₊₁ = xₜ − ηĝₜ"],
+  ["OnePointTemporalSecant", "zero-order", { lr: 0.005, perturb: 0.1 }, "ĝₜ = (yₜ−yₜ₋₁)Δₜ₋₁/c;  zₜ = qₜ₋₁ − η clip(ĝₜ);  qₜ₊₁=zₜ+cΔₜ"],
   ["FiniteDiffCentral", "zero-order", { lr: 0.02, h: 0.0001 }, "ĝₜ,ᵢ = [f(xₜ+heᵢ)−f(xₜ−heᵢ)]/(2h);  xₜ₊₁ = xₜ − ηĝₜ"],
-  ["FDSA", "zero-order", { lr: 0.02, h: 0.0001 }, "ĝₜ = [f(xₜ+δₜ)−f(xₜ)]δₜ/‖δₜ‖²;  xₜ₊₁ = xₜ − ηĝₜ"],
-  ["SPSA", "zero-order", { lr: 0.005, perturb: 0.1 }, "ĝₜ = [f(xₜ+cΔₜ)−f(xₜ−cΔₜ)]Δₜ/(2c);  xₜ₊₁ = xₜ − ηĝₜ"],
-  ["ZOSGD", "zero-order", { lr: 0.005, mu: 0.01 }, "ĝₜ = [f(xₜ+μuₜ)−f(xₜ)]uₜ/(μ‖uₜ‖²);  xₜ₊₁ = xₜ − ηĝₜ"],
-  ["ZOSignSGD", "zero-order", { lr: 0.005, mu: 0.01 }, "xₜ₊₁ = xₜ − η sign([f(xₜ+μuₜ)−f(xₜ)]uₜ)"],
+  ["NormalizedRandomSecant", "zero-order", { lr: 0.02, h: 0.0001 }, "ĝₜ = (yₜ−yₜ₋₁)(qₜ−qₜ₋₁)/‖qₜ−qₜ₋₁‖²;  zₜ=qₜ₋₁−ηĝₜ"],
+  ["ScaledTemporalSecant", "zero-order", { lr: 0.005, perturb: 0.1 }, "ĝₜ = (yₜ−yₜ₋₁)Δₜ₋₁/(2c);  zₜ=qₜ₋₁−η clip(ĝₜ)"],
+  ["GaussianTemporalSecant", "zero-order", { lr: 0.005, mu: 0.01 }, "ĝₜ = (yₜ−yₜ₋₁)(qₜ−qₜ₋₁)/‖qₜ−qₜ₋₁‖²;  zₜ=qₜ₋₁−ηĝₜ"],
+  ["SignedGaussianTemporalSecant", "zero-order", { lr: 0.005, mu: 0.01 }, "zₜ=qₜ₋₁−η sign((yₜ−yₜ₋₁)(qₜ−qₜ₋₁))"],
   ["QuadraticInterpolation", "zero-order", { lr: 0.1 }, "q(s)=as²+bs+f₀;  s* = clip(−b/(2a), −2, 2);  xₜ₊₁=xₜ+s*d"],
-  ["KieferWolfowitz", "zero-order", { lr: 0.005, cn: 0.1 }, "cₙ=c/√n;  ĝₙ,ᵢ=[f(xₙ+cₙeᵢ)−f(xₙ−cₙeᵢ)]/(2cₙ);  xₙ₊₁=xₙ−ηĝₙ/√n"],
-  ["NedicSubgradient", "zero-order", { lr: 0.005 }, "ĝₜ = [f(xₜ+δₜ)−f(xₜ)]δₜ/‖δₜ‖²;  xₜ₊₁=xₜ−ηĝₜ/√t"],
-  ["AcceleratedSPSA", "zero-order", { lr: 0.005, perturb: 0.1, beta: 0.9 }, "mₜ=βmₜ₋₁+(1−β)ĝSPSAₜ;  xₜ₊₁=xₜ−ηmₜ"],
-  ["CMAES", "zero-order", { sigma: 0.5, population_size: 0 }, "xᵢ ~ N(mₜ,Cₜ);  mₜ₊₁ = mean(elite(xᵢ));  Cₜ₊₁ = cov(elite(xᵢ))"],
-  ["GPUCB", "zero-order", { beta: 2 }, "xₜ₊₁ = xₜ + clip(βuₜ,0,2)dₜ,  ‖dₜ‖₂=1"],
+  ["ShrinkingTemporalSecant", "zero-order", { lr: 0.005, cn: 0.1 }, "cₙ=c/√n;  ĝₙ=(yₙ−yₙ₋₁)Δₙ₋₁/(2cₙ);  zₙ=qₙ₋₁−ηĝₙ/√n"],
+  ["DiminishingGaussianSecant", "zero-order", { lr: 0.005 }, "ĝₜ=(yₜ−yₜ₋₁)(qₜ−qₜ₋₁)/‖qₜ−qₜ₋₁‖²;  zₜ=qₜ₋₁−ηĝₜ/√t"],
+  ["MomentumTemporalSecant", "zero-order", { lr: 0.005, perturb: 0.1, beta: 0.9 }, "ĝₜ=(yₜ−yₜ₋₁)Δₜ₋₁/(2c);  mₜ=βmₜ₋₁+(1−β)ĝₜ"],
+  ["EliteCovarianceSearch", "zero-order", { sigma: 0.5, population_size: 0 }, "xᵢ ~ N(mₜ,Cₜ);  mₜ₊₁ = mean(elite(xᵢ));  Cₜ₊₁ = cov(elite(xᵢ))"],
+  ["DistanceScaledExploration", "zero-order", { beta: 2 }, "qₜ₊₁ = qₜ + clip(βrₜ,0,2)uₜ,  ‖uₜ‖₂=1"],
 ].map(([name, order, params, formula]) => ({ name, order, params, formula }));
 
 const optimizerStages = (...stages) => String.raw`\begin{aligned}`
@@ -101,10 +101,9 @@ const OPTIMIZER_LATEX = {
     String.raw`v_t=\beta v_{t-1}-\eta g_t`,
     String.raw`x_{t+1}=x_t+v_t`,
   ),
-  Nesterov: optimizerStages(
-    String.raw`y_t=x_t+\beta v_{t-1}`,
-    String.raw`v_t=\beta v_{t-1}-\eta\nabla f(y_t)`,
-    String.raw`x_{t+1}=x_t+v_t`,
+  LookaheadNesterov: optimizerStages(
+    String.raw`z_{t+1}=y_t-\eta g_t`,
+    String.raw`y_{t+1}=z_{t+1}+\beta(z_{t+1}-z_t)`,
   ),
   Adam: optimizerStages(
     String.raw`m_t=\beta_1m_{t-1}+(1-\beta_1)g_t`,
@@ -112,7 +111,7 @@ const OPTIMIZER_LATEX = {
     String.raw`\hat m_t=\frac{m_t}{1-\beta_1^t},\qquad \hat v_t=\frac{v_t}{1-\beta_2^t}`,
     String.raw`x_{t+1}=x_t-\eta\frac{\hat m_t}{\sqrt{\hat v_t}+\varepsilon}`,
   ),
-  AdamW: optimizerStages(
+  CoupledL2Adam: optimizerStages(
     String.raw`\widetilde g_t=g_t+\lambda x_t`,
     String.raw`m_t=\beta_1m_{t-1}+(1-\beta_1)\widetilde g_t`,
     String.raw`v_t=\beta_2v_{t-1}+(1-\beta_2)\widetilde g_t^2`,
@@ -145,66 +144,66 @@ const OPTIMIZER_LATEX = {
     String.raw`\varepsilon_t\sim\mathcal N(0,I)`,
     String.raw`x_{t+1}=x_{\mathrm{best}}+\sigma\varepsilon_t`,
   ),
-  OnePointSPSA: optimizerStages(
-    String.raw`\Delta_t\sim\operatorname{Rad}(\{-1,+1\}^d)`,
-    String.raw`\widehat g_t=\frac{f(x_t+c\Delta_t)-f(x_t)}{c}\Delta_t`,
-    String.raw`x_{t+1}=x_t-\eta\widehat g_t`,
+  OnePointTemporalSecant: optimizerStages(
+    String.raw`\widehat g_t=\frac{y_t-y_{t-1}}{c}\Delta_{t-1}`,
+    String.raw`z_t=q_{t-1}-\eta\operatorname{clip}(\widehat g_t,-10,10)`,
+    String.raw`q_{t+1}=z_t+c\Delta_t`,
   ),
   FiniteDiffCentral: optimizerStages(
     String.raw`y_{t,i}^{\pm}=f(x_t\pm he_i)`,
     String.raw`\widehat g_{t,i}=\frac{y_{t,i}^{+}-y_{t,i}^{-}}{2h}`,
     String.raw`x_{t+1}=x_t-\eta\widehat g_t`,
   ),
-  FDSA: optimizerStages(
-    String.raw`\delta_t\sim\mathcal N(0,h^2I)`,
-    String.raw`\widehat g_t=\frac{f(x_t+\delta_t)-f(x_t)}{\|\delta_t\|_2^2}\delta_t`,
-    String.raw`x_{t+1}=x_t-\eta\widehat g_t`,
+  NormalizedRandomSecant: optimizerStages(
+    String.raw`d_t=q_t-q_{t-1}`,
+    String.raw`\widehat g_t=\frac{y_t-y_{t-1}}{(\|d_t\|_2+10^{-8})^2}d_t`,
+    String.raw`z_t=q_{t-1}-\eta\widehat g_t`,
   ),
-  SPSA: optimizerStages(
-    String.raw`\Delta_t\sim\operatorname{Rad}(\{-1,+1\}^d)`,
-    String.raw`y_t^{\pm}=f(x_t\pm c\Delta_t)`,
-    String.raw`\widehat g_t=\frac{y_t^+-y_t^-}{2c}\Delta_t`,
-    String.raw`x_{t+1}=x_t-\eta\widehat g_t`,
+  ScaledTemporalSecant: optimizerStages(
+    String.raw`\widehat g_t=\frac{y_t-y_{t-1}}{2c}\Delta_{t-1}`,
+    String.raw`z_t=q_{t-1}-\eta\operatorname{clip}(\widehat g_t,-10,10)`,
+    String.raw`q_{t+1}=z_t+c\Delta_t`,
   ),
-  ZOSGD: optimizerStages(
-    String.raw`u_t\sim\mathcal N(0,I)`,
-    String.raw`\widehat g_t=\frac{f(x_t+\mu u_t)-f(x_t)}{\mu\|u_t\|_2^2}u_t`,
-    String.raw`x_{t+1}=x_t-\eta\widehat g_t`,
+  GaussianTemporalSecant: optimizerStages(
+    String.raw`d_t=q_t-q_{t-1}`,
+    String.raw`\widehat g_t=\frac{y_t-y_{t-1}}{\|d_t\|_2^2+10^{-12}}d_t`,
+    String.raw`z_t=q_{t-1}-\eta\operatorname{clip}(\widehat g_t,-10^3,10^3)`,
   ),
-  ZOSignSGD: optimizerStages(
-    String.raw`u_t\sim\mathcal N(0,I)`,
-    String.raw`s_t=\operatorname{sign}\!\left([f(x_t+\mu u_t)-f(x_t)]u_t\right)`,
-    String.raw`x_{t+1}=x_t-\eta s_t`,
+  SignedGaussianTemporalSecant: optimizerStages(
+    String.raw`d_t=q_t-q_{t-1}`,
+    String.raw`s_t=\operatorname{sign}\!\left(\frac{(y_t-y_{t-1})d_t}{\|d_t\|_2+10^{-8}}\right)`,
+    String.raw`z_t=q_{t-1}-\eta s_t`,
   ),
   QuadraticInterpolation: optimizerStages(
     String.raw`q(s)=as^2+bs+f_0`,
     String.raw`s^*=\operatorname{clip}\!\left(-\frac{b}{2a},-2,2\right)`,
     String.raw`x_{t+1}=x_t+s^*d_t`,
   ),
-  KieferWolfowitz: optimizerStages(
+  ShrinkingTemporalSecant: optimizerStages(
     String.raw`c_n=\frac{c}{\sqrt n}`,
-    String.raw`\widehat g_{n,i}=\frac{f(x_n+c_ne_i)-f(x_n-c_ne_i)}{2c_n}`,
-    String.raw`x_{n+1}=x_n-\frac{\eta}{\sqrt n}\widehat g_n`,
+    String.raw`\widehat g_n=\frac{y_n-y_{n-1}}{2c_n}\Delta_{n-1}`,
+    String.raw`z_n=q_{n-1}-\frac{\eta}{\sqrt n}\operatorname{clip}(\widehat g_n,-10,10)`,
   ),
-  NedicSubgradient: optimizerStages(
-    String.raw`\delta_t\sim\mathcal N(0,\sigma^2I)`,
-    String.raw`\widehat g_t=\frac{f(x_t+\delta_t)-f(x_t)}{\|\delta_t\|_2^2}\delta_t`,
-    String.raw`x_{t+1}=x_t-\frac{\eta}{\sqrt t}\widehat g_t`,
+  DiminishingGaussianSecant: optimizerStages(
+    String.raw`d_t=q_t-q_{t-1}`,
+    String.raw`\widehat g_t=\frac{y_t-y_{t-1}}{(\|d_t\|_2+10^{-8})^2}d_t`,
+    String.raw`z_t=q_{t-1}-\frac{\eta}{\sqrt t}\widehat g_t`,
   ),
-  AcceleratedSPSA: optimizerStages(
-    String.raw`\widehat g_t=\frac{f(x_t+c\Delta_t)-f(x_t-c\Delta_t)}{2c}\Delta_t`,
+  MomentumTemporalSecant: optimizerStages(
+    String.raw`\widehat g_t=\frac{y_t-y_{t-1}}{2c}\Delta_{t-1}`,
     String.raw`m_t=\beta m_{t-1}+(1-\beta)\widehat g_t`,
-    String.raw`x_{t+1}=x_t-\eta m_t`,
+    String.raw`z_t=q_{t-1}-\eta m_t`,
   ),
-  CMAES: optimizerStages(
+  EliteCovarianceSearch: optimizerStages(
     String.raw`x_i\sim\mathcal N(m_t,C_t)`,
     String.raw`E_t=\operatorname{elite}(x_1,\ldots,x_\lambda)`,
     String.raw`m_{t+1}=\operatorname{mean}(E_t)`,
     String.raw`C_{t+1}=\operatorname{cov}(E_t)`,
   ),
-  GPUCB: optimizerStages(
-    String.raw`\|d_t\|_2=1`,
-    String.raw`x_{t+1}=x_t+\operatorname{clip}(\beta u_t,0,2)d_t`,
+  DistanceScaledExploration: optimizerStages(
+    String.raw`r_t=\operatorname{mean}_{s<t}\|q_t-q_s\|_2`,
+    String.raw`\|u_t\|_2=1`,
+    String.raw`q_{t+1}=q_t+\operatorname{clip}(\beta r_t,0,2)u_t`,
   ),
 };
 OPTIMIZERS.forEach((optimizer) => { optimizer.formula = OPTIMIZER_LATEX[optimizer.name]; });
@@ -482,7 +481,7 @@ function selectedOptimizerConfigs() {
   return OPTIMIZERS.filter((optimizer) => selectedOptimizerNames.has(optimizer.name))
     .map((optimizer) => {
       const params = { ...optimizerParamsByName[optimizer.name] };
-      if (optimizer.name === "CMAES" && !(params.population_size > 0)) delete params.population_size;
+      if (optimizer.name === "EliteCovarianceSearch" && !(params.population_size > 0)) delete params.population_size;
       return { name: optimizer.name, params };
     });
 }
