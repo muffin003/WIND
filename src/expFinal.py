@@ -5,7 +5,7 @@ is a broad integration benchmark; this file isolates five falsifiable mechanisms
 
 1. exact empirical/theoretical calibration of constant-step SGD on a drifting
    quadratic;
-2. the memory--adaptation trade-off for SGD, Heavy Ball, Nesterov, Adam, and
+2. the memory--adaptation trade-off for SGD, Heavy Ball, LookaheadNesterov, Adam, and
    AMSGrad;
 3. the zero-order variance--freshness trade-off under frozen-round and
    streaming-query semantics, with comparisons made at equal oracle-query budgets;
@@ -218,14 +218,14 @@ class HeavyBallMethod:
         return x + self.velocity
 
 
-class NesterovMethod:
+class LookaheadNesterovMethod:
     """Fixed-momentum Nesterov method with gradients queried at the look-ahead point.
 
     The public iterate ``x`` is the look-ahead point ``y_t``.  After observing
     ``grad f(y_t)``, the method forms ``z_{t+1}`` and returns ``y_{t+1}``.
     """
 
-    name = "Nesterov"
+    name = "LookaheadNesterov"
 
     def __init__(self, learning_rate: float, beta: float):
         self.learning_rate = learning_rate
@@ -695,7 +695,9 @@ def _memory_methods() -> Mapping[str, Callable[[], FirstOrderMethod]]:
     return {
         "SGD": lambda: SGDMethod(learning_rate=0.05),
         "HeavyBall": lambda: HeavyBallMethod(learning_rate=0.05, beta=0.9),
-        "Nesterov": lambda: NesterovMethod(learning_rate=0.05, beta=0.9),
+        "LookaheadNesterov": lambda: LookaheadNesterovMethod(
+            learning_rate=0.05, beta=0.9
+        ),
         "Adam": lambda: AdamMethod(learning_rate=0.02),
         "AMSGrad": lambda: AMSGradMethod(learning_rate=0.02),
     }
@@ -905,7 +907,7 @@ def _zero_order_cases(profile: ExperimentProfile) -> List[ZeroOrderCase]:
 def _zero_order_methods() -> Tuple[ZeroOrderMethodConfig, ...]:
     return (
         ZeroOrderMethodConfig("FirstOrderReference", "first_order"),
-        ZeroOrderMethodConfig("SPSA-m1", "spsa"),
+        ZeroOrderMethodConfig("PairedSPSA-m1", "spsa"),
         ZeroOrderMethodConfig("Gaussian-m1", "gaussian", directions=1),
         ZeroOrderMethodConfig("Gaussian-m5", "gaussian", directions=5),
         ZeroOrderMethodConfig("Gaussian-m20", "gaussian", directions=20),

@@ -43,6 +43,17 @@ from .metrics import (
 )
 from .benchmark import BenchmarkRunner, OptimizerProtocol, ExperimentResult
 
+
+def _warn_legacy_optimizer_name(alias: str, canonical_name: str) -> None:
+    """Warn when a historical public class name is used directly."""
+    warnings.warn(
+        f"{alias} is a legacy alias for {canonical_name}; "
+        "use the canonical name in new configurations and reports.",
+        FutureWarning,
+        stacklevel=3,
+    )
+
+
 # ============================================================================
 # 1. OPTIMIZERS (25 algorithms with theoretically motivated parameters)
 # ============================================================================
@@ -106,6 +117,13 @@ class SGDPolyak(OptimizerProtocol):
 class HeavyBall(OptimizerProtocol):
     """Heavy Ball momentum method."""
 
+    canonical_name = "HeavyBall"
+    implementation_id = "heavy_ball_v1"
+    oracle_type = "first-order"
+    query_cost_per_step = 1
+    update_schedule = "one-gradient-per-outer-step"
+    memory_complexity = "O(d)"
+
     def __init__(self, lr: float = 0.1, beta: float = 0.9, name: str = "HeavyBall"):
         self.lr = lr
         self.beta = beta
@@ -125,31 +143,53 @@ class HeavyBall(OptimizerProtocol):
         return x + self.velocity
 
 
-class Nesterov(OptimizerProtocol):
-    """Nesterov Accelerated Gradient."""
+class LookaheadNesterov(OptimizerProtocol):
+    """Two-sequence Nesterov update with gradients at extrapolated points."""
 
-    def __init__(self, lr: float = 0.05, beta: float = 0.9, name: str = "Nesterov"):
+    canonical_name = "LookaheadNesterov"
+    implementation_id = "lookahead_nesterov_v1"
+    oracle_type = "first-order"
+    query_cost_per_step = 1
+    update_schedule = "one-gradient-at-extrapolated-point-per-outer-step"
+    memory_complexity = "O(d)"
+
+    def __init__(
+        self,
+        lr: float = 0.05,
+        beta: float = 0.9,
+        name: str = "LookaheadNesterov",
+    ):
         self.lr = lr
         self.beta = beta
         self.name = name
-        self.velocity = None
+        self.previous_core = None
 
     def reset(self):
-        self.velocity = None
+        self.previous_core = None
 
     def step(self, obs: Observation) -> np.ndarray:
         if obs.grad is None:
-            raise ValueError("Nesterov requires gradient access")
+            raise ValueError("LookaheadNesterov requires gradient access")
         x = obs.x.copy()
-        if self.velocity is None:
-            self.velocity = np.zeros_like(x)
-        # Lookahead position
-        x_lookahead = x + self.beta * self.velocity
-        # Gradient at lookahead (approximated using current gradient)
-        grad_lookahead = obs.grad
-        # Update velocity
-        self.velocity = self.beta * self.velocity - self.lr * grad_lookahead
-        return x + self.velocity
+        core = x - self.lr * obs.grad
+        if self.previous_core is None:
+            next_x = core
+        else:
+            next_x = core + self.beta * (core - self.previous_core)
+        self.previous_core = core.copy()
+        return next_x
+
+
+class Nesterov(HeavyBall):
+    """Deprecated compatibility alias for the historical Heavy Ball update."""
+
+    canonical_name = "HeavyBall"
+    implementation_id = "heavy_ball_v1"
+
+    def __init__(self, lr: float = 0.05, beta: float = 0.9, name: str = "Nesterov"):
+        _warn_legacy_optimizer_name("Nesterov", "HeavyBall")
+        super().__init__(lr=lr, beta=beta, name=name)
+        self.requested_alias = "Nesterov"
 
 
 class Adam(OptimizerProtocol):
@@ -193,8 +233,15 @@ class Adam(OptimizerProtocol):
         return x - self.lr * m_hat / (np.sqrt(v_hat) + self.eps)
 
 
-class AdamW(OptimizerProtocol):
-    """Adam with weight decay."""
+class CoupledL2Adam(OptimizerProtocol):
+    """Adam whose gradient includes a coupled L2 penalty."""
+
+    canonical_name = "CoupledL2Adam"
+    implementation_id = "coupled_l2_adam_v1"
+    oracle_type = "first-order"
+    query_cost_per_step = 1
+    update_schedule = "one-gradient-per-outer-step"
+    memory_complexity = "O(d)"
 
     def __init__(
         self,
@@ -203,7 +250,7 @@ class AdamW(OptimizerProtocol):
         beta2: float = 0.999,
         eps: float = 1e-8,
         weight_decay: float = 0.01,
-        name: str = "AdamW",
+        name: str = "CoupledL2Adam",
     ):
         self.lr = lr
         self.beta1 = beta1
@@ -222,7 +269,7 @@ class AdamW(OptimizerProtocol):
 
     def step(self, obs: Observation) -> np.ndarray:
         if obs.grad is None:
-            raise ValueError("AdamW requires gradient access")
+            raise ValueError("CoupledL2Adam requires gradient access")
         x = obs.x.copy()
         grad = obs.grad + self.weight_decay * x
         if self.m is None:
@@ -234,6 +281,26 @@ class AdamW(OptimizerProtocol):
         m_hat = self.m / (1 - self.beta1**self.t)
         v_hat = self.v / (1 - self.beta2**self.t)
         return x - self.lr * m_hat / (np.sqrt(v_hat) + self.eps)
+
+
+class AdamW(CoupledL2Adam):
+    """Deprecated compatibility alias for :class:`CoupledL2Adam`."""
+
+    canonical_name = "CoupledL2Adam"
+    implementation_id = "coupled_l2_adam_v1"
+
+    def __init__(
+        self,
+        lr: float = 0.001,
+        beta1: float = 0.9,
+        beta2: float = 0.999,
+        eps: float = 1e-8,
+        weight_decay: float = 0.01,
+        name: str = "AdamW",
+    ):
+        _warn_legacy_optimizer_name("AdamW", "CoupledL2Adam")
+        super().__init__(lr, beta1, beta2, eps, weight_decay, name)
+        self.requested_alias = "AdamW"
 
 
 class AMSGrad(OptimizerProtocol):
@@ -423,9 +490,9 @@ class RandomSearch(OptimizerProtocol):
         return self.best_x + np.random.randn(*self.best_x.shape) * self.scale
 
 
-class OnePointSPSA(OptimizerProtocol):
+class OnePointTemporalSecant(OptimizerProtocol):
     """
-    One-point SPSA with single measurement per step.
+    Clipped Rademacher temporal secant with one new value per outer step.
 
     Args:
         lr: Learning rate (0.005 is recommended for stability)
@@ -434,7 +501,10 @@ class OnePointSPSA(OptimizerProtocol):
     """
 
     def __init__(
-        self, lr: float = 0.005, perturb: float = 0.1, name: str = "OnePointSPSA"
+        self,
+        lr: float = 0.005,
+        perturb: float = 0.1,
+        name: str = "OnePointTemporalSecant",
     ):
         self.lr = lr
         self.perturb = perturb  # Explicit perturbation scale
@@ -475,8 +545,22 @@ class OnePointSPSA(OptimizerProtocol):
         return x_new + self.perturb * self.delta
 
 
+class OnePointSPSA(OnePointTemporalSecant):
+    """Deprecated compatibility alias for :class:`OnePointTemporalSecant`."""
+
+    canonical_name = "OnePointTemporalSecant"
+    implementation_id = "one_point_temporal_secant_v1"
+
+    def __init__(
+        self, lr: float = 0.005, perturb: float = 0.1, name: str = "OnePointSPSA"
+    ):
+        _warn_legacy_optimizer_name("OnePointSPSA", "OnePointTemporalSecant")
+        super().__init__(lr=lr, perturb=perturb, name=name)
+        self.requested_alias = "OnePointSPSA"
+
+
 class FiniteDiffCentral(OptimizerProtocol):
-    """Central finite differences (2d queries per step)."""
+    """Central finite differences using 2d values per gradient estimate."""
 
     def __init__(
         self, lr: float = 0.02, h: float = 1e-4, name: str = "FiniteDiffCentral"
@@ -539,10 +623,15 @@ class FiniteDiffCentral(OptimizerProtocol):
         return self.x_base + e
 
 
-class FDSA(OptimizerProtocol):
-    """Finite Difference Stochastic Approximation (Spall, 1992)."""
+class NormalizedRandomSecant(OptimizerProtocol):
+    """Normalized random temporal secant update."""
 
-    def __init__(self, lr: float = 0.02, h: float = 1e-4, name: str = "FDSA"):
+    def __init__(
+        self,
+        lr: float = 0.02,
+        h: float = 1e-4,
+        name: str = "NormalizedRandomSecant",
+    ):
         self.lr = lr
         self.h = h
         self.name = name
@@ -578,10 +667,22 @@ class FDSA(OptimizerProtocol):
         return x_new + delta_next
 
 
-class SPSA(OptimizerProtocol):
-    """SPSA with lr=0.005 and numerical stability."""
+class FDSA(NormalizedRandomSecant):
+    """Deprecated compatibility alias for :class:`NormalizedRandomSecant`."""
 
-    def __init__(self, lr=0.005, perturb=0.1, name="SPSA"):
+    canonical_name = "NormalizedRandomSecant"
+    implementation_id = "normalized_random_secant_v1"
+
+    def __init__(self, lr: float = 0.02, h: float = 1e-4, name: str = "FDSA"):
+        _warn_legacy_optimizer_name("FDSA", "NormalizedRandomSecant")
+        super().__init__(lr=lr, h=h, name=name)
+        self.requested_alias = "FDSA"
+
+
+class ScaledTemporalSecant(OptimizerProtocol):
+    """Clipped Rademacher temporal secant scaled by two perturbation radii."""
+
+    def __init__(self, lr=0.005, perturb=0.1, name="ScaledTemporalSecant"):
         self.lr = lr
         self.perturb = perturb
         self.name = name
@@ -615,10 +716,27 @@ class SPSA(OptimizerProtocol):
         return x_new + self.perturb * self.delta
 
 
-class ZOSGD(OptimizerProtocol):
-    """Zero-Order SGD with Gaussian smoothing and overflow protection."""
+class SPSA(ScaledTemporalSecant):
+    """Deprecated compatibility alias for :class:`ScaledTemporalSecant`."""
 
-    def __init__(self, lr: float = 0.005, mu: float = 0.01, name: str = "ZOSGD"):
+    canonical_name = "ScaledTemporalSecant"
+    implementation_id = "scaled_temporal_secant_v1"
+
+    def __init__(self, lr=0.005, perturb=0.1, name="SPSA"):
+        _warn_legacy_optimizer_name("SPSA", "ScaledTemporalSecant")
+        super().__init__(lr=lr, perturb=perturb, name=name)
+        self.requested_alias = "SPSA"
+
+
+class GaussianTemporalSecant(OptimizerProtocol):
+    """Clipped Gaussian temporal secant update."""
+
+    def __init__(
+        self,
+        lr: float = 0.005,
+        mu: float = 0.01,
+        name: str = "GaussianTemporalSecant",
+    ):
         self.lr = lr
         self.mu = max(mu, 1e-6)  # Avoid division by zero
         self.name = name
@@ -655,10 +773,27 @@ class ZOSGD(OptimizerProtocol):
         return x_new + delta_next
 
 
-class ZOSignSGD(OptimizerProtocol):
-    """Zero-Order SignSGD with gradient sign estimation."""
+class ZOSGD(GaussianTemporalSecant):
+    """Deprecated compatibility alias for :class:`GaussianTemporalSecant`."""
 
-    def __init__(self, lr: float = 0.005, mu: float = 0.01, name: str = "ZOSignSGD"):
+    canonical_name = "GaussianTemporalSecant"
+    implementation_id = "gaussian_temporal_secant_v1"
+
+    def __init__(self, lr: float = 0.005, mu: float = 0.01, name: str = "ZOSGD"):
+        _warn_legacy_optimizer_name("ZOSGD", "GaussianTemporalSecant")
+        super().__init__(lr=lr, mu=mu, name=name)
+        self.requested_alias = "ZOSGD"
+
+
+class SignedGaussianTemporalSecant(OptimizerProtocol):
+    """Sign update derived from a Gaussian temporal secant."""
+
+    def __init__(
+        self,
+        lr: float = 0.005,
+        mu: float = 0.01,
+        name: str = "SignedGaussianTemporalSecant",
+    ):
         self.lr = lr
         self.mu = mu
         self.name = name
@@ -692,6 +827,18 @@ class ZOSignSGD(OptimizerProtocol):
         # Return perturbed point
         delta_next = np.random.randn(*obs.x.shape) * self.mu
         return x_new + delta_next
+
+
+class ZOSignSGD(SignedGaussianTemporalSecant):
+    """Deprecated alias for :class:`SignedGaussianTemporalSecant`."""
+
+    canonical_name = "SignedGaussianTemporalSecant"
+    implementation_id = "signed_gaussian_temporal_secant_v1"
+
+    def __init__(self, lr: float = 0.005, mu: float = 0.01, name: str = "ZOSignSGD"):
+        _warn_legacy_optimizer_name("ZOSignSGD", "SignedGaussianTemporalSecant")
+        super().__init__(lr=lr, mu=mu, name=name)
+        self.requested_alias = "ZOSignSGD"
 
 
 class QuadraticInterpolation(OptimizerProtocol):
@@ -759,11 +906,14 @@ class QuadraticInterpolation(OptimizerProtocol):
         return x_new + self.lr * self.direction
 
 
-class KieferWolfowitz(OptimizerProtocol):
-    """Classical Kiefer-Wolfowitz stochastic approximation."""
+class ShrinkingTemporalSecant(OptimizerProtocol):
+    """Rademacher temporal secant with shrinking perturbation and step scales."""
 
     def __init__(
-        self, lr: float = 0.005, cn: float = 0.1, name: str = "KieferWolfowitz"
+        self,
+        lr: float = 0.005,
+        cn: float = 0.1,
+        name: str = "ShrinkingTemporalSecant",
     ):
         self.lr = lr
         self.cn = cn
@@ -815,10 +965,24 @@ class KieferWolfowitz(OptimizerProtocol):
         return x_new + cn * self.perturbations
 
 
-class NedicSubgradient(OptimizerProtocol):
-    """Nedic's subgradient method for zero-order optimization."""
+class KieferWolfowitz(ShrinkingTemporalSecant):
+    """Deprecated compatibility alias for :class:`ShrinkingTemporalSecant`."""
 
-    def __init__(self, lr: float = 0.005, name: str = "NedicSubgradient"):
+    canonical_name = "ShrinkingTemporalSecant"
+    implementation_id = "shrinking_temporal_secant_v1"
+
+    def __init__(
+        self, lr: float = 0.005, cn: float = 0.1, name: str = "KieferWolfowitz"
+    ):
+        _warn_legacy_optimizer_name("KieferWolfowitz", "ShrinkingTemporalSecant")
+        super().__init__(lr=lr, cn=cn, name=name)
+        self.requested_alias = "KieferWolfowitz"
+
+
+class DiminishingGaussianSecant(OptimizerProtocol):
+    """Normalized Gaussian temporal secant with a diminishing step size."""
+
+    def __init__(self, lr: float = 0.005, name: str = "DiminishingGaussianSecant"):
         self.lr = lr
         self.name = name
         self.x_prev = None
@@ -858,15 +1022,27 @@ class NedicSubgradient(OptimizerProtocol):
         return x_new + delta_next
 
 
-class AcceleratedSPSA(OptimizerProtocol):
-    """Accelerated SPSA (Granichin, 2002) with momentum — lr=0.005."""
+class NedicSubgradient(DiminishingGaussianSecant):
+    """Deprecated compatibility alias for :class:`DiminishingGaussianSecant`."""
+
+    canonical_name = "DiminishingGaussianSecant"
+    implementation_id = "diminishing_gaussian_secant_v1"
+
+    def __init__(self, lr: float = 0.005, name: str = "NedicSubgradient"):
+        _warn_legacy_optimizer_name("NedicSubgradient", "DiminishingGaussianSecant")
+        super().__init__(lr=lr, name=name)
+        self.requested_alias = "NedicSubgradient"
+
+
+class MomentumTemporalSecant(OptimizerProtocol):
+    """Momentum applied to a stateful Rademacher temporal secant."""
 
     def __init__(
         self,
         lr: float = 0.005,
         perturb: float = 0.1,
         beta: float = 0.9,
-        name: str = "AcceleratedSPSA",
+        name: str = "MomentumTemporalSecant",
     ):
         self.lr = lr
         self.perturb = perturb
@@ -910,14 +1086,32 @@ class AcceleratedSPSA(OptimizerProtocol):
         return x_new + self.perturb * self.delta
 
 
-class CMAES(OptimizerProtocol):
-    """Covariance Matrix Adaptation Evolution Strategy (simplified)."""
+class AcceleratedSPSA(MomentumTemporalSecant):
+    """Deprecated compatibility alias for :class:`MomentumTemporalSecant`."""
+
+    canonical_name = "MomentumTemporalSecant"
+    implementation_id = "momentum_temporal_secant_v1"
+
+    def __init__(
+        self,
+        lr: float = 0.005,
+        perturb: float = 0.1,
+        beta: float = 0.9,
+        name: str = "AcceleratedSPSA",
+    ):
+        _warn_legacy_optimizer_name("AcceleratedSPSA", "MomentumTemporalSecant")
+        super().__init__(lr=lr, perturb=perturb, beta=beta, name=name)
+        self.requested_alias = "AcceleratedSPSA"
+
+
+class EliteCovarianceSearch(OptimizerProtocol):
+    """Population search using the empirical covariance of elite candidates."""
 
     def __init__(
         self,
         population_size: Optional[int] = None,
         sigma: float = 0.5,
-        name: str = "CMAES",
+        name: str = "EliteCovarianceSearch",
     ):
         self.population_size = population_size
         self.sigma = sigma
@@ -976,10 +1170,27 @@ class CMAES(OptimizerProtocol):
         return self.population[self.current_idx]
 
 
-class GPUCB(OptimizerProtocol):
-    """Simplified Gaussian Process UCB for Bayesian optimization."""
+class CMAES(EliteCovarianceSearch):
+    """Deprecated compatibility alias for :class:`EliteCovarianceSearch`."""
 
-    def __init__(self, beta: float = 2.0, name: str = "GPUCB"):
+    canonical_name = "EliteCovarianceSearch"
+    implementation_id = "elite_covariance_search_v1"
+
+    def __init__(
+        self,
+        population_size: Optional[int] = None,
+        sigma: float = 0.5,
+        name: str = "CMAES",
+    ):
+        _warn_legacy_optimizer_name("CMAES", "EliteCovarianceSearch")
+        super().__init__(population_size=population_size, sigma=sigma, name=name)
+        self.requested_alias = "CMAES"
+
+
+class DistanceScaledExploration(OptimizerProtocol):
+    """Random exploration whose step is scaled by previous-query distances."""
+
+    def __init__(self, beta: float = 2.0, name: str = "DistanceScaledExploration"):
         self.beta = beta
         self.name = name
         self.X = []
@@ -1005,7 +1216,7 @@ class GPUCB(OptimizerProtocol):
             # Initial exploration phase
             return np.random.randn(self.dim) * 0.5
 
-        # Simplified GP-UCB: select point with highest uncertainty estimate
+        # Scale random exploration by distances to earlier query points.
         X_arr = np.array(self.X)
         y_arr = np.array(self.y)
 
@@ -1016,7 +1227,7 @@ class GPUCB(OptimizerProtocol):
         else:
             uncertainty = 1.0
 
-        # UCB acquisition: move in random direction scaled by uncertainty (with clipping)
+        # Move in a random direction scaled by the distance statistic.
         direction = np.random.randn(self.dim)
         direction_norm = np.linalg.norm(direction) + 1e-8
         direction = direction / direction_norm
@@ -1027,6 +1238,18 @@ class GPUCB(OptimizerProtocol):
         x_new = obs.x.copy() + step_size * direction
 
         return x_new
+
+
+class GPUCB(DistanceScaledExploration):
+    """Deprecated compatibility alias for :class:`DistanceScaledExploration`."""
+
+    canonical_name = "DistanceScaledExploration"
+    implementation_id = "distance_scaled_exploration_v1"
+
+    def __init__(self, beta: float = 2.0, name: str = "GPUCB"):
+        _warn_legacy_optimizer_name("GPUCB", "DistanceScaledExploration")
+        super().__init__(beta=beta, name=name)
+        self.requested_alias = "GPUCB"
 
 
 # ============================================================================
@@ -1122,30 +1345,24 @@ def run_single_experiment(
     # Create environment
     env = create_environment(rho=rho, A=A, dim=dim, noise_type=noise_type, seed=seed)
 
-    # Create oracle (FO for gradient methods, ZO for black-box)
-    optimizer_name = (
-        optimizer.name if hasattr(optimizer, "name") else optimizer.__class__.__name__
-    )
-    is_zero_order = optimizer_name in [
-        "RandomSearch",
-        "OnePointSPSA",
-        "FiniteDiffForward",
-        "FiniteDiffCentral",
-        "FDSA",
-        "SPSA",
-        "ZOSGD",
-        "ZOSignSGD",
-        "QuadraticInterpolation",
-        "KieferWolfowitz",
-        "NedicSubgradient",
-        "AcceleratedSPSA",
-        "CMAES",
-        "GPUCB",
-    ]
+    # Resolve the declared catalog identity instead of inferring capabilities from
+    # substrings in the class name. Third-party optimizers may still provide their
+    # own explicit ``oracle_type`` metadata.
+    optimizer_name = getattr(optimizer, "name", optimizer.__class__.__name__)
+    oracle_type = getattr(optimizer, "oracle_type", None)
+    try:
+        from .catalog import attach_optimizer_metadata, resolve_optimizer_spec
 
-    # Authoritative oracle-type tag (consumed by OptimizerInfo.from_optimizer),
-    # avoiding the unreliable step()-signature heuristic.
-    optimizer.oracle_type = "zero-order" if is_zero_order else "first-order"
+        optimizer_spec = resolve_optimizer_spec(optimizer_name)
+        attach_optimizer_metadata(
+            optimizer, optimizer_spec, requested_name=optimizer_name
+        )
+        oracle_type = optimizer_spec.oracle_type
+    except KeyError:
+        if oracle_type not in {"first-order", "zero-order"}:
+            oracle_type = "first-order"
+        optimizer.oracle_type = oracle_type
+    is_zero_order = oracle_type == "zero-order"
 
     if not is_zero_order:
         oracle = FirstOrderOracle(
@@ -1202,48 +1419,41 @@ def run_full_experiment_suite(
     A_values = [0.001, 0.01, 0.1, 0.3, 0.6, 1.0] if A_values is None else A_values
     dimensions = [5] if dimensions is None else dimensions
 
-    # Optimizer configurations (12 first-order + 13 zero-order algorithms)
-    optimizers_config = [
-        # First-Order methods (12)
-        ("SGD", lambda: SGD(lr=0.1)),
-        ("SGD_Polyak", lambda: SGDPolyak(lr=0.1)),
-        ("HeavyBall", lambda: HeavyBall(lr=0.1, beta=0.9)),
-        ("Nesterov", lambda: Nesterov(lr=0.05, beta=0.9)),
-        ("Adam", lambda: Adam(lr=0.001, beta1=0.9, beta2=0.999)),
-        ("AdamW", lambda: AdamW(lr=0.001, beta1=0.9, beta2=0.999, weight_decay=0.01)),
-        ("AMSGrad", lambda: AMSGrad(lr=0.001, beta1=0.9, beta2=0.999)),
-        ("SMD", lambda: SMD(lr=0.1)),
-        ("RDA", lambda: RDA(lr=0.1, lambda_reg=0.01)),
-        ("ProxSGD", lambda: ProxSGD(lr=0.1, lambda_reg=0.01)),
-        ("AdaptiveLR", lambda: AdaptiveLR(lr0=0.1)),
-        ("SignSGD", lambda: SignSGD(lr=0.05)),
-        # Zero-order methods (13); SPSA-family methods use lr=0.005.
-        ("RandomSearch", lambda: RandomSearch(lr=0.1, scale=0.5)),
-        ("OnePointSPSA", lambda: OnePointSPSA(lr=0.005, perturb=0.1)),  # ← lr=0.005
-        # ("FiniteDiffForward", lambda: FiniteDiffForward(lr=0.02, h=1e-4)),
-        ("FiniteDiffCentral", lambda: FiniteDiffCentral(lr=0.02, h=1e-4)),
-        ("FDSA", lambda: FDSA(lr=0.02, h=1e-4)),
-        ("SPSA", lambda: SPSA(lr=0.005, perturb=0.1)),  # ← lr=0.005
-        ("ZOSGD", lambda: ZOSGD(lr=0.005, mu=0.01)),  # ← lr=0.005
-        ("ZOSignSGD", lambda: ZOSignSGD(lr=0.005, mu=0.01)),  # ← lr=0.005
-        ("QuadraticInterpolation", lambda: QuadraticInterpolation(lr=0.1)),
-        ("KieferWolfowitz", lambda: KieferWolfowitz(lr=0.005, cn=0.1)),  # ← lr=0.005
-        ("NedicSubgradient", lambda: NedicSubgradient(lr=0.005)),  # ← lr=0.005
-        (
-            "AcceleratedSPSA",
-            lambda: AcceleratedSPSA(lr=0.005, perturb=0.1, beta=0.9),
-        ),  # ← lr=0.005
-        ("CMAES", lambda: CMAES(sigma=0.5)),
-        ("GPUCB", lambda: GPUCB(beta=2.0)),
-    ]
+    from .catalog import OPTIMIZER_SPECS, resolve_optimizer_spec
 
-    if optimizer_names is not None:
-        requested = set(optimizer_names)
-        known = {name for name, _ in optimizers_config}
-        unknown = requested - known
+    selected_specs = []
+    if optimizer_names is None:
+        selected_specs = [(spec, spec.canonical_name) for spec in OPTIMIZER_SPECS]
+    else:
+        seen = set()
+        unknown = []
+        for requested_name in optimizer_names:
+            try:
+                spec = resolve_optimizer_spec(requested_name)
+            except KeyError:
+                unknown.append(requested_name)
+                continue
+            if spec.canonical_name in seen:
+                raise ValueError(
+                    "Optimizer selection resolves to duplicate canonical name: "
+                    f"{spec.canonical_name}"
+                )
+            seen.add(spec.canonical_name)
+            selected_specs.append((spec, requested_name))
         if unknown:
             raise ValueError(f"Unknown optimizer(s): {sorted(unknown)}")
-        optimizers_config = [item for item in optimizers_config if item[0] in requested]
+
+    optimizers_config = [
+        (
+            spec.canonical_name,
+            lambda spec=spec, requested_name=requested_name: spec.instantiate(
+                requested_name=requested_name
+            ),
+            requested_name,
+            spec.implementation_id,
+        )
+        for spec, requested_name in selected_specs
+    ]
 
     # Setup output directory
     output_path = Path(output_dir)
@@ -1261,9 +1471,7 @@ def run_full_experiment_suite(
     )
     print(f"🚀 Starting WIND experiment suite")
     print(f"   Configurations: ρ ∈ {rho_values}, A ∈ {A_values}, dim ∈ {dimensions}")
-    print(
-        f"   Algorithms: {len(optimizers_config)} optimizers (SPSA family with lr=0.005)"
-    )
+    print(f"   Algorithms: {len(optimizers_config)} explicitly identified optimizers")
     print(f"   Seeds: {seeds}")
     print(f"   Total runs: {total_runs}")
     print(f"   Steps per run: {T}")
@@ -1278,14 +1486,19 @@ def run_full_experiment_suite(
     for rho in rho_values:
         for A in A_values:
             for dim in dimensions:
-                for opt_name, opt_factory in optimizers_config:
+                for (
+                    opt_name,
+                    opt_factory,
+                    requested_alias,
+                    implementation_id,
+                ) in optimizers_config:
                     for seed in seeds:
                         run_counter += 1
 
                         # Skip expensive methods in high-dim regimes (optimization)
                         if dim > 20 and opt_name in [
-                            "CMAES",
-                            "GPUCB",
+                            "EliteCovarianceSearch",
+                            "DistanceScaledExploration",
                             "FiniteDiffForward",
                             "FiniteDiffCentral",
                         ]:
@@ -1341,6 +1554,12 @@ def run_full_experiment_suite(
                             results.append(
                                 {
                                     "algorithm": opt_name,
+                                    "requested_alias": (
+                                        requested_alias
+                                        if requested_alias != opt_name
+                                        else None
+                                    ),
+                                    "implementation_id": implementation_id,
                                     "rho": rho,
                                     "A": A,
                                     "dim": dim,
@@ -1423,12 +1642,21 @@ def run_full_experiment_suite(
         "rho_values": rho_values,
         "A_values": A_values,
         "dimensions": dimensions,
-        "algorithms": [name for name, _ in optimizers_config],
+        "algorithms": [name for name, _, _, _ in optimizers_config],
+        "requested_aliases": {
+            name: requested_name
+            for name, _, requested_name, _ in optimizers_config
+            if requested_name != name
+        },
+        "implementation_ids": {
+            name: implementation_id
+            for name, _, _, implementation_id in optimizers_config
+        },
         "seeds": seeds,
         "T": T,
         "elapsed_time_seconds": time.time() - start_time,
         "output_directory": str(output_path),
-        "spsa_lr": 0.005,  # Explicitly recorded for publication reproducibility
+        "scaled_temporal_secant_lr": 0.005,
         "heavy_ball_lr": 0.1,
         "adam_lr": 0.001,
     }
@@ -1464,7 +1692,7 @@ if __name__ == "__main__":
     print("Where V_n(x) = ‖x - θ_n‖_{ρ+1}^{ρ+1} is the Lyapunov function")
     print("for ρ-Hölder smooth gradients with drift magnitude A.")
     print()
-    print("⚠️  CRITICAL PARAMETER: SPSA family uses lr=0.005 for stability")
+    print("⚠️  Temporal-secant baselines use lr=0.005 for stability")
     print()
 
     # Run experiment

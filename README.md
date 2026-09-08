@@ -131,9 +131,35 @@ For a quick smoke test, use one value in every grid and a small optimizer list:
   "rho_values": [1.0],
   "drift_values": [0.01],
   "dimensions": [5],
-  "optimizers": ["SGD", "SPSA"]
+  "optimizers": ["SGD", "ScaledTemporalSecant"]
 }
 ```
+
+### Canonical optimizer names
+
+WIND reports an optimizer by the update it actually executes. Historical names
+remain accepted as compatibility aliases, emit a `FutureWarning`, and are stored
+separately as `requested_alias` in result metadata.
+
+| Canonical name | Legacy alias |
+| --- | --- |
+| `HeavyBall` | `Nesterov` |
+| `CoupledL2Adam` | `AdamW` |
+| `OnePointTemporalSecant` | `OnePointSPSA` |
+| `NormalizedRandomSecant` | `FDSA` |
+| `ScaledTemporalSecant` | `SPSA` |
+| `GaussianTemporalSecant` | `ZOSGD` |
+| `SignedGaussianTemporalSecant` | `ZOSignSGD` |
+| `ShrinkingTemporalSecant` | `KieferWolfowitz` |
+| `DiminishingGaussianSecant` | `NedicSubgradient` |
+| `MomentumTemporalSecant` | `AcceleratedSPSA` |
+| `EliteCovarianceSearch` | `CMAES` |
+| `DistanceScaledExploration` | `GPUCB` |
+
+`LookaheadNesterov` is the canonical two-sequence Nesterov implementation. The
+legacy `Nesterov` alias preserves the historical catalog update, which is
+identical to `HeavyBall` for the same initialization, observations, and
+parameters.
 
 ## Python API
 

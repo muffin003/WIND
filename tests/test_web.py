@@ -117,6 +117,27 @@ def test_capability_catalog_exposes_full_workbench():
     assert len(catalog["noises"]) == 7
     assert len(catalog["oracles"]) == 5
     assert len(catalog["optimizers"]) == 25
+    optimizer_names = {item["name"] for item in catalog["optimizers"]}
+    assert "CoupledL2Adam" in optimizer_names
+    assert "LookaheadNesterov" in optimizer_names
+    assert "AdamW" not in optimizer_names
+    assert "Nesterov" not in optimizer_names
+
+
+def test_workbench_accepts_legacy_alias_and_reports_canonical_name(tmp_path):
+    config = workbench_config()
+    config["optimizer"] = {"name": "AdamW", "params": {"lr": 0.001}}
+    config["runner"]["steps"] = 2
+    config["runner"]["output_dir"] = "results"
+
+    with pytest.warns(FutureWarning, match="AdamW is a legacy alias"):
+        summary = run_workbench(config, tmp_path)
+
+    assert summary["optimizer"] == "CoupledL2Adam"
+    assert summary["requested_aliases"] == {"CoupledL2Adam": "AdamW"}
+    assert summary["runs"][0]["requested_alias"] == "AdamW"
+    assert summary["runs"][0]["implementation_id"] == "coupled_l2_adam_v1"
+    assert (tmp_path / "results" / "CoupledL2Adam_seed42.json").is_file()
 
 
 def test_workbench_runner_executes_general_configuration(tmp_path):

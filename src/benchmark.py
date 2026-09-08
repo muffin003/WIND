@@ -38,19 +38,6 @@ class OptimizerProtocol(Protocol):
         ...
 
 
-# ============================================================================
-# OPTIMIZER MARKER (Full reproducibility signature)
-# ============================================================================
-def _estimate_memory(class_name: str) -> str:
-    """Heuristic asymptotic memory class from the optimizer class name."""
-    cn = class_name.lower()
-    if any(x in cn for x in ["adam", "sgd", "momentum", "nesterov"]):
-        return "O(d)"
-    if "cma" in cn or "evolution" in cn:
-        return "O(d²)"
-    return "unknown"
-
-
 @dataclass
 class OptimizerInfo:
     """
@@ -69,6 +56,9 @@ class OptimizerInfo:
     oracle_type: str  # 'first-order', 'zero-order', 'hybrid'
     query_cost_per_step: int  # Number of oracle queries per optimization step
     memory_complexity: str  # Asymptotic memory requirement (e.g., 'O(d)', 'O(d²)')
+    implementation_id: str = "unspecified"
+    requested_alias: Optional[str] = None
+    update_schedule: str = "one-oracle-call-per-outer-step"
 
     @classmethod
     def from_optimizer(cls, optimizer: Any) -> "OptimizerInfo":
@@ -77,17 +67,31 @@ class OptimizerInfo:
 
         Automatically detects:
           - Hyperparameters from public attributes
-          - Oracle type from step() signature
-          - Computational complexity from class name
+          - Explicit catalog identity and capability metadata
+          - Oracle type from step() signature only for third-party optimizers
         """
-        # Extract name (prefer explicit name attribute, fallback to class name)
-        name = getattr(optimizer, "name", optimizer.__class__.__name__)
+        # Canonical identity is explicit. A historical requested name is retained
+        # separately so exported results cannot be mistaken for another method.
+        display_name = getattr(optimizer, "name", optimizer.__class__.__name__)
+        name = getattr(optimizer, "canonical_name", display_name)
 
         # Extract hyperparameters (public attributes with simple types)
         hyperparams = {}
         for attr in dir(optimizer):
             # Skip private attributes and methods
-            if attr.startswith("_") or attr in ["step", "reset", "name", "class_name"]:
+            if attr.startswith("_") or attr in [
+                "step",
+                "reset",
+                "name",
+                "canonical_name",
+                "requested_alias",
+                "implementation_id",
+                "oracle_type",
+                "query_cost_per_step",
+                "update_schedule",
+                "memory_complexity",
+                "class_name",
+            ]:
                 continue
 
             try:
@@ -102,7 +106,8 @@ class OptimizerInfo:
                 # Skip attributes that cannot be safely accessed
                 continue
 
-        # Prefer an explicit declaration from the optimizer; fall back to heuristics.
+        # Prefer explicit capability metadata; use signature inspection only for
+        # third-party optimizers that do not come from the WIND catalog.
         explicit = getattr(optimizer, "oracle_type", None)
         if isinstance(explicit, str) and explicit in (
             "first-order",
@@ -110,60 +115,24 @@ class OptimizerInfo:
             "hybrid",
         ):
             oracle_type = explicit
-            sig = inspect.signature(optimizer.step)  # kept for downstream use
-            params = list(sig.parameters.values())
-            return cls(
-                name=name,
-                class_name=optimizer.__class__.__name__,
-                module=optimizer.__class__.__module__,
-                hyperparameters=hyperparams,
-                oracle_type=oracle_type,
-                query_cost_per_step=(
-                    2
-                    if oracle_type == "zero-order"
-                    and ("SPSA" in optimizer.__class__.__name__)
-                    else 1
-                ),
-                memory_complexity=_estimate_memory(optimizer.__class__.__name__),
-            )
-
-        # Detect oracle type from step() signature
-        oracle_type = "unknown"
-        try:
-            sig = inspect.signature(optimizer.step)
-            params = list(sig.parameters.values())
-
-            # Check if step() receives gradient information
-            if len(params) > 0 and hasattr(params[0].annotation, "__name__"):
-                anno = params[0].annotation
-                if "grad" in str(anno).lower() or "gradient" in str(anno).lower():
-                    oracle_type = "first-order"
-
-            # Fallback: check parameter names
-            if oracle_type == "unknown":
-                param_names = [p.name.lower() for p in params]
-                if any("grad" in name for name in param_names):
-                    oracle_type = "first-order"
-                else:
-                    oracle_type = "zero-order"
-        except Exception:
-            oracle_type = "unknown"
-
-        # Estimate query cost per step
-        query_cost = 1
-        if oracle_type == "zero-order":
-            # Heuristic: SPSA uses 2 queries, RandomSearch uses 1
-            if "SPSA" in optimizer.__class__.__name__ or "spsa" in name.lower():
-                query_cost = 2
-
-        # Estimate memory complexity
-        class_name = optimizer.__class__.__name__.lower()
-        if any(x in class_name for x in ["adam", "sgd", "momentum", "nesterov"]):
-            mem_complexity = "O(d)"
-        elif "cma" in class_name or "evolution" in class_name:
-            mem_complexity = "O(d²)"
         else:
-            mem_complexity = "unknown"
+            oracle_type = "unknown"
+            try:
+                sig = inspect.signature(optimizer.step)
+                params = list(sig.parameters.values())
+                if params and hasattr(params[0].annotation, "__name__"):
+                    annotation = str(params[0].annotation).lower()
+                    if "grad" in annotation or "gradient" in annotation:
+                        oracle_type = "first-order"
+                if oracle_type == "unknown":
+                    parameter_names = [parameter.name.lower() for parameter in params]
+                    oracle_type = (
+                        "first-order"
+                        if any("grad" in item for item in parameter_names)
+                        else "zero-order"
+                    )
+            except Exception:
+                oracle_type = "unknown"
 
         return cls(
             name=name,
@@ -171,8 +140,19 @@ class OptimizerInfo:
             module=optimizer.__class__.__module__,
             hyperparameters=hyperparams,
             oracle_type=oracle_type,
-            query_cost_per_step=query_cost,
-            memory_complexity=mem_complexity,
+            query_cost_per_step=int(getattr(optimizer, "query_cost_per_step", 1)),
+            memory_complexity=str(getattr(optimizer, "memory_complexity", "unknown")),
+            implementation_id=str(
+                getattr(optimizer, "implementation_id", "unspecified")
+            ),
+            requested_alias=getattr(optimizer, "requested_alias", None),
+            update_schedule=str(
+                getattr(
+                    optimizer,
+                    "update_schedule",
+                    "one-oracle-call-per-outer-step",
+                )
+            ),
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -484,6 +464,9 @@ class ExperimentResult:
                     "experiment_id": exp_id,
                     "optimizer_name": self.optimizer_info.name,
                     "optimizer_class": self.optimizer_info.class_name,
+                    "optimizer_implementation_id": self.optimizer_info.implementation_id,
+                    "optimizer_requested_alias": self.optimizer_info.requested_alias,
+                    "optimizer_update_schedule": self.optimizer_info.update_schedule,
                     "oracle_type": self.optimizer_info.oracle_type,
                     "step": t,
                     "dim": d,
@@ -514,6 +497,9 @@ class ExperimentResult:
                 "experiment_id": exp_id,
                 "optimizer_name": self.optimizer_info.name,
                 "optimizer_class": self.optimizer_info.class_name,
+                "optimizer_implementation_id": self.optimizer_info.implementation_id,
+                "optimizer_requested_alias": self.optimizer_info.requested_alias,
+                "optimizer_update_schedule": self.optimizer_info.update_schedule,
                 "oracle_type": self.optimizer_info.oracle_type,
                 "step": t,
                 "dim": -1,
@@ -740,6 +726,9 @@ class BenchmarkRunner:
             "total_steps": T,
             "dimension": self.environment.dim,
             "oracle_type": optimizer_info.oracle_type,
+            "optimizer_implementation_id": optimizer_info.implementation_id,
+            "optimizer_requested_alias": optimizer_info.requested_alias,
+            "optimizer_update_schedule": optimizer_info.update_schedule,
             "record_trajectory": self.record_trajectory,
             "tail_fraction": self.tail_fraction,
         }

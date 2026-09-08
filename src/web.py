@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Sequence
 from urllib.parse import parse_qs, unquote, urlparse
 
+from .catalog import accepted_optimizer_names
 from .web_runner import (
     DRIFTS,
     LANDSCAPES,
@@ -37,33 +38,7 @@ WEB_ROOT = PROJECT_ROOT / "web"
 MAX_REQUEST_BYTES = 1_000_000
 PROGRESS_PATTERN = re.compile(r"\[(\d+)/(\d+)\]")
 
-KNOWN_OPTIMIZERS = {
-    "SGD",
-    "SGD_Polyak",
-    "HeavyBall",
-    "Nesterov",
-    "Adam",
-    "AdamW",
-    "AMSGrad",
-    "SMD",
-    "RDA",
-    "ProxSGD",
-    "AdaptiveLR",
-    "SignSGD",
-    "RandomSearch",
-    "OnePointSPSA",
-    "FiniteDiffCentral",
-    "FDSA",
-    "SPSA",
-    "ZOSGD",
-    "ZOSignSGD",
-    "QuadraticInterpolation",
-    "KieferWolfowitz",
-    "NedicSubgradient",
-    "AcceleratedSPSA",
-    "CMAES",
-    "GPUCB",
-}
+KNOWN_OPTIMIZERS = set(OPTIMIZERS)
 
 MIME_TYPES = {
     ".html": "text/html; charset=utf-8",
@@ -204,7 +179,7 @@ def validate_config(payload: Any) -> Dict[str, Any]:
             raise ConfigurationError("optimizers must be null or a non-empty list")
         if not all(isinstance(value, str) for value in optimizers):
             raise ConfigurationError("optimizers must contain method names")
-        unknown_optimizers = set(optimizers) - KNOWN_OPTIMIZERS
+        unknown_optimizers = set(optimizers) - accepted_optimizer_names()
         if unknown_optimizers:
             raise ConfigurationError(
                 f"Unknown optimizer(s): {sorted(unknown_optimizers)}"
@@ -437,7 +412,7 @@ def cancel_job(job_id: str) -> ExperimentJob:
 
 
 class WindWebHandler(BaseHTTPRequestHandler):
-    server_version = "WINDLab/0.2"
+    server_version = "WINDLab/0.3"
 
     def log_message(self, format: str, *args: Any) -> None:
         print(f"[web] {self.address_string()} - {format % args}")
@@ -471,7 +446,7 @@ class WindWebHandler(BaseHTTPRequestHandler):
         if path == "/api/status":
             with JOB_LOCK:
                 job = CURRENT_JOB.snapshot() if CURRENT_JOB is not None else None
-            self._send_json({"connected": True, "version": "0.2.0", "job": job})
+            self._send_json({"connected": True, "version": "0.3.0", "job": job})
             return
 
         if path == "/api/catalog":

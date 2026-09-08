@@ -264,9 +264,9 @@ python -m wind_benchmark.web`;
     SGD: ["Gradient descent with optional momentum.", "Градиентный спуск с необязательным импульсом.", "带可选动量的梯度下降。"],
     SGD_Polyak: ["Averages SGD iterates to reduce variance.", "Усредняет итерации SGD для снижения дисперсии.", "通过平均 SGD 迭代降低方差。"],
     HeavyBall: ["Uses persistent velocity to accelerate smooth directions.", "Использует инерционную скорость для ускорения по гладким направлениям.", "使用持续速度加速平滑方向。"],
-    Nesterov: ["Evaluates the descent direction at a look-ahead point.", "Оценивает направление спуска в упреждающей точке.", "在前瞻点估计下降方向。"],
+    LookaheadNesterov: ["Evaluates each gradient at the extrapolated public point.", "Вычисляет каждый градиент в экстраполированной публичной точке.", "在外推的公开点计算每个梯度。"],
     Adam: ["Combines first and second gradient moments with bias correction.", "Сочетает первый и второй моменты градиента с коррекцией смещения.", "结合一阶和二阶梯度矩并进行偏差修正。"],
-    AdamW: ["Adam with an explicit weight-decay contribution.", "Adam с явным вкладом weight decay.", "带显式权重衰减的 Adam。"],
+    CoupledL2Adam: ["Adam with a coupled L2 term added before moment updates.", "Adam с coupled L2-членом, добавляемым до обновления моментов.", "在矩更新前加入耦合 L2 项的 Adam。"],
     AMSGrad: ["Uses a non-decreasing second-moment maximum for stability.", "Использует неубывающий максимум второго момента для устойчивости.", "使用单调不减的二阶矩最大值增强稳定性。"],
     SMD: ["Entropy mirror descent that naturally preserves the simplex.", "Энтропийный зеркальный спуск, сохраняющий симплекс.", "自然保持单纯形的熵镜像下降。"],
     RDA: ["Accumulates gradients before an L1 soft-threshold update.", "Накапливает градиенты перед L1 soft-threshold обновлением.", "累积梯度后执行 L1 软阈值更新。"],
@@ -274,18 +274,18 @@ python -m wind_benchmark.web`;
     AdaptiveLR: ["Shrinks the learning rate as the gradient norm grows.", "Уменьшает шаг при росте нормы градиента.", "随梯度范数增大而缩小学习率。"],
     SignSGD: ["Uses only coordinate-wise gradient signs.", "Использует только покоординатные знаки градиента.", "仅使用逐坐标梯度符号。"],
     RandomSearch: ["Samples around the best point observed so far.", "Сэмплирует вокруг лучшей найденной точки.", "围绕当前最佳点进行采样。"],
-    OnePointSPSA: ["Builds a direction estimate from one perturbed measurement.", "Строит оценку направления по одному возмущённому измерению.", "通过一次扰动测量估计方向。"],
+    OnePointTemporalSecant: ["Combines the new value with the preceding value and Rademacher direction.", "Объединяет новое значение с предыдущим значением и направлением Радемахера.", "将新函数值与前一函数值及 Rademacher 方向组合。"],
     FiniteDiffCentral: ["Uses symmetric coordinate queries for a finite-difference gradient.", "Использует симметричные координатные запросы для конечной разности.", "使用对称坐标查询估计有限差分梯度。"],
-    FDSA: ["Estimates a gradient along a random finite-difference direction.", "Оценивает градиент вдоль случайного конечно-разностного направления.", "沿随机有限差分方向估计梯度。"],
-    SPSA: ["Uses simultaneous random perturbations and paired measurements.", "Использует одновременные случайные возмущения и парные измерения.", "使用同时随机扰动和成对测量。"],
-    ZOSGD: ["Applies SGD to a Gaussian-smoothed gradient estimate.", "Применяет SGD к оценке градиента сглаженной функции.", "对高斯平滑梯度估计应用 SGD。"],
-    ZOSignSGD: ["Uses the sign of a zero-order directional estimate.", "Использует знак zero-order оценки направления.", "使用零阶方向估计的符号。"],
+    NormalizedRandomSecant: ["Normalizes a value difference along the displacement between successive queries.", "Нормирует разность значений вдоль смещения между последовательными запросами.", "沿连续查询之间的位移归一化函数值差。"],
+    ScaledTemporalSecant: ["Uses a scaled Rademacher secant formed across successive outer times.", "Использует масштабированную секущую Радемахера между последовательными внешними моментами.", "使用跨连续外部时刻形成的缩放 Rademacher 割线。"],
+    GaussianTemporalSecant: ["Uses a clipped Gaussian temporal secant.", "Использует ограниченную гауссовскую временную секущую.", "使用截断的高斯时间割线。"],
+    SignedGaussianTemporalSecant: ["Updates with the sign of a Gaussian temporal secant.", "Обновляется по знаку гауссовской временной секущей.", "使用高斯时间割线的符号更新。"],
     QuadraticInterpolation: ["Fits a one-dimensional quadratic along a random direction.", "Строит одномерную квадратичную модель вдоль случайного направления.", "沿随机方向拟合一维二次模型。"],
-    KieferWolfowitz: ["Classical finite-difference stochastic approximation with decaying scales.", "Классическая конечно-разностная стохастическая аппроксимация с убывающими масштабами.", "具有衰减尺度的经典有限差分随机逼近。"],
-    NedicSubgradient: ["Uses a random directional subgradient and diminishing step.", "Использует случайный направленный субградиент и убывающий шаг.", "使用随机方向次梯度和递减步长。"],
-    AcceleratedSPSA: ["Adds momentum to the SPSA gradient estimate.", "Добавляет импульс к оценке градиента SPSA.", "为 SPSA 梯度估计添加动量。"],
-    CMAES: ["Updates a sampling distribution from the best population members.", "Обновляет распределение сэмплирования по лучшим членам популяции.", "根据种群中的优秀成员更新采样分布。"],
-    GPUCB: ["Balances an observed direction with an uncertainty bonus.", "Балансирует наблюдаемое направление и бонус неопределённости.", "在观测方向与不确定性奖励之间权衡。"],
+    ShrinkingTemporalSecant: ["Applies shrinking perturbation and step scales to a temporal secant.", "Применяет убывающие масштабы возмущения и шага к временной секущей.", "对时间割线使用递减的扰动和步长尺度。"],
+    DiminishingGaussianSecant: ["Combines a normalized Gaussian temporal secant with a diminishing step.", "Сочетает нормированную гауссовскую временную секущую с убывающим шагом.", "将归一化高斯时间割线与递减步长结合。"],
+    MomentumTemporalSecant: ["Adds momentum to a stateful Rademacher temporal secant.", "Добавляет импульс к временной секущей Радемахера с состоянием.", "为有状态 Rademacher 时间割线加入动量。"],
+    EliteCovarianceSearch: ["Updates a sampling distribution from the empirical covariance of elite candidates.", "Обновляет распределение по эмпирической ковариации лучших кандидатов.", "根据精英候选的经验协方差更新采样分布。"],
+    DistanceScaledExploration: ["Scales a random exploration step by distances to previous queries.", "Масштабирует случайный поисковый шаг расстояниями до предыдущих запросов.", "按与先前查询的距离缩放随机探索步长。"],
   };
   window.WIND_OPTIMIZER_TEXT = Object.fromEntries(Object.entries(optimizerDescriptions).map(([name, values]) => [name, { en: values[0], ru: values[1], zh: values[2] }]));
 
@@ -297,7 +297,7 @@ python -m wind_benchmark.web`;
 
   window.WIND_SCENARIOS = [
     { id: "smooth", labels: { en: "Smooth tracking", ru: "Плавное отслеживание", zh: "平滑跟踪" }, descriptions: { en: "Quadratic + linear drift + SGD", ru: "Quadratic + linear drift + SGD", zh: "Quadratic + 线性漂移 + SGD" }, landscape: "quadratic", drift: "linear", oracle: "first-order", optimizer: "SGD", valueNoise: "gaussian", gradNoise: "gaussian" },
-    { id: "noisy-zo", labels: { en: "Noisy zero-order", ru: "Шумный zero-order", zh: "含噪零阶" }, descriptions: { en: "Random walk + value noise + SPSA", ru: "Random walk + шум значения + SPSA", zh: "随机游走 + 函数值噪声 + SPSA" }, landscape: "quadratic", drift: "random_walk", oracle: "zero-order", optimizer: "SPSA", valueNoise: "gaussian", gradNoise: "none" },
+    { id: "noisy-zo", labels: { en: "Noisy zero-order", ru: "Шумный zero-order", zh: "含噪零阶" }, descriptions: { en: "Random walk + value noise + temporal secant", ru: "Random walk + шум значения + временная секущая", zh: "随机游走 + 函数值噪声 + 时间割线" }, landscape: "quadratic", drift: "random_walk", oracle: "zero-order", optimizer: "ScaledTemporalSecant", valueNoise: "gaussian", gradNoise: "none" },
     { id: "simplex", labels: { en: "Simplex allocation", ru: "Распределение на симплексе", zh: "单纯形分配" }, descriptions: { en: "Simplex + cyclic drift + mirror descent", ru: "Simplex + cyclic drift + mirror descent", zh: "Simplex + 周期漂移 + 镜像下降" }, landscape: "simplex", drift: "cyclic", oracle: "first-order", optimizer: "SMD", valueNoise: "gaussian", gradNoise: "gaussian" },
   ];
 })();
