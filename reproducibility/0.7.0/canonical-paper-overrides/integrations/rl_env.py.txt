@@ -1,0 +1,257 @@
+"""Shared five-feature, twelve-action value-only task and exact SB3 adapter."""
+
+from dataclasses import dataclass
+import numpy as np
+import gymnasium as gym
+from wind_benchmark.core.privacy import (
+    TruthGuard,
+    _internal,
+    _bind,
+    _owner_for_session,
+    _Lease,
+)
+
+
+@dataclass(frozen=True)
+class EpisodeSpec:
+    scenario: str
+    dimension: int
+    horizon: int
+    workload_seed: int
+    pair_seed: int
+    noise: str
+
+
+class ResourceAllocationEnv(TruthGuard, gym.Env):
+    """The same observations, actions and noisy reward for Q-learning and PPO.
+
+    Schedule/evaluator references are private, including through Gym wrappers.
+    Only public noisy histories are used to construct features and rewards.
+    """
+
+    metadata = {"render_modes": []}
+    render_mode = None
+    _public_during_run = frozenset(
+        {
+            "reset",
+            "step",
+            "close",
+            "render",
+            "unwrapped",
+            "spec",
+            "metadata",
+            "render_mode",
+            "action_space",
+            "observation_space",
+            "np_random",
+            "_np_random",
+            "_np_random_seed",
+            "np_random_seed",
+            "queries",
+            "transitions",
+            "completed_episodes",
+            "exhausted",
+            "total_steps",
+        }
+    )
+
+    @_internal
+    def __init__(self, episodes, evaluation_session=None, record_public=False):
+        if not episodes or any(e.horizon < 1 for e in episodes):
+            raise ValueError("A nonempty finite episode schedule is required")
+        self.__episodes = tuple(episodes)
+        self.__evaluation_session = evaluation_session
+        self.__record_public = bool(record_public)
+        self.__logs = []
+        self.__env = None
+        self.__active = False
+        self.__closed = False
+        self.__index = 0
+        self.__queries = self.__transitions = self.__completed = 0
+        self.__total_steps = sum(e.horizon for e in episodes)
+        self.action_space = gym.spaces.Discrete(12)
+        self.observation_space = gym.spaces.Box(-1, 1, shape=(5,), dtype=np.float32)
+        self.__owner = _owner_for_session()
+        _bind(self, self.__owner)
+
+    @property
+    @_internal
+    def queries(self):
+        return self.__queries
+
+    @property
+    @_internal
+    def transitions(self):
+        return self.__transitions
+
+    @property
+    @_internal
+    def completed_episodes(self):
+        return self.__completed
+
+    @property
+    @_internal
+    def total_steps(self):
+        return self.__total_steps
+
+    @property
+    @_internal
+    def exhausted(self):
+        return self.__closed or self.__completed == len(self.__episodes)
+
+    def __features(self):
+        return self.__memory.features(float(self.__observation[-1]), self.__step)[
+            [1, 2, 3, 5, 6]
+        ].astype(np.float32)
+
+    @_internal
+    def reset(self, *, seed=None, options=None):
+        from wind_benchmark.experiments.rl import make_transfer_env, ControllerMemory
+
+        if self.exhausted or self.__active:
+            raise RuntimeError("No reset outside a scheduled episode boundary")
+        if options:
+            raise ValueError("The fixed episode schedule has no reset options")
+        super().reset(seed=seed)
+        episode = self.__episodes[self.__index]
+        self.__index += 1
+        self.__env = make_transfer_env(
+            episode.scenario,
+            episode.dimension,
+            episode.horizon,
+            episode.workload_seed,
+            episode.noise,
+            self.__evaluation_session,
+        )
+        self.__observation, info = self.__env.reset()
+        self.__queries += 1
+        if info["value_queries"] != 1 or info["gradient_queries"] != 0:
+            raise RuntimeError("Reset must consume exactly one value query")
+        self.__memory = ControllerMemory(
+            episode.dimension, episode.horizon, episode.pair_seed
+        )
+        self.__step = 0
+        self.__active = True
+        if self.__record_public:
+            self.__logs.append([])
+        return self.__features(), {"value_queries": self.__queries}
+
+    @_internal
+    def step(self, action):
+        if not self.__active or self.exhausted:
+            raise RuntimeError("Episode schedule exhausted or reset required")
+        if not self.action_space.contains(action):
+            raise ValueError("Expected a Discrete(12) action")
+        current = self.__observation
+        x, value = current[:-1].astype(float), float(current[-1])
+        delta = self.__memory.action_delta(int(action), x, self.__step)
+        following, _, terminated, truncated, info = self.__env.step(
+            delta.astype(np.float32)
+        )
+        next_x, next_value = following[:-1].astype(float), float(following[-1])
+        realized = next_x - x
+        switching = float(np.abs(realized).sum())
+        reward = 10 * (-next_value + 2 * (value - next_value) - 0.02 * switching)
+        self.__memory.update(value, next_value, realized)
+        self.__observation = following
+        self.__step += 1
+        self.__queries += 1
+        self.__transitions += 1
+        if self.__record_public:
+            self.__logs[-1].append(
+                {
+                    "action": int(action),
+                    "reward": reward,
+                    "observed_value": next_value,
+                    "reallocation_l1": switching,
+                    "constraint_violation": float(info["constraint_violation"]),
+                }
+            )
+        features = self.__features()
+        if terminated or truncated:
+            self.__active = False
+            self.__completed += 1
+            self.__env.close()
+        return (
+            features,
+            float(reward),
+            bool(terminated),
+            bool(truncated),
+            {"value_queries": self.__queries},
+        )
+
+    @_internal
+    def close(self):
+        if self.__closed:
+            return
+        self.__closed = True
+        if self.__env is not None:
+            self.__env.close()
+        if isinstance(self.__owner, _Lease):
+            self.__owner._finish(not self.__active)
+        self.__active = False
+
+
+def bounded_vec_env_class():
+    """Import SB3 only for the optional RL extra."""
+    from stable_baselines3.common.vec_env import VecEnv
+
+    class BoundedVecEnv(VecEnv):
+        """Single environment; no automatic reset beyond the declared schedule."""
+
+        def __init__(self, env):
+            self.env = env
+            self._pending_action = None
+            super().__init__(1, env.observation_space, env.action_space)
+
+        def reset(self):
+            observation, info = self.env.reset(seed=self._seeds[0])
+            self._reset_seeds()
+            self._reset_options()
+            self.reset_infos = [info]
+            return observation[None, :]
+
+        def step_async(self, actions):
+            if self._pending_action is not None or self.env.exhausted:
+                raise RuntimeError("No further action is scheduled")
+            self._pending_action = int(np.asarray(actions).reshape(-1)[0])
+
+        def step_wait(self):
+            if self._pending_action is None:
+                raise RuntimeError("step_async required")
+            action, self._pending_action = self._pending_action, None
+            observation, reward, terminated, truncated, info = self.env.step(action)
+            done = terminated or truncated
+            info["TimeLimit.truncated"] = truncated and not terminated
+            if done:
+                info["terminal_observation"] = observation.copy()
+                if not self.env.exhausted:
+                    observation, reset_info = self.env.reset()
+                    self.reset_infos = [reset_info]
+            return (
+                observation[None, :],
+                np.array([reward], np.float32),
+                np.array([done]),
+                [info],
+            )
+
+        def close(self):
+            self.env.close()
+
+        def get_attr(self, attr_name, indices=None):
+            return [getattr(self.env, attr_name)]
+
+        def set_attr(self, attr_name, value, indices=None):
+            raise AttributeError("Fixed task configuration is read-only")
+
+        def env_method(self, method_name, *method_args, indices=None, **method_kwargs):
+            if method_name not in {"render"}:
+                raise AttributeError(
+                    "No evaluator or task mutation methods are exposed"
+                )
+            return [getattr(self.env, method_name)(*method_args, **method_kwargs)]
+
+        def env_is_wrapped(self, wrapper_class, indices=None):
+            return [False]
+
+    return BoundedVecEnv

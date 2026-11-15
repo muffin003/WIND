@@ -1,0 +1,17 @@
+include LICENSE README.md pyproject.toml requirements.txt experiment.example.json
+recursive-include src *.py
+recursive-include web *.html *.css *.js
+recursive-include tests *.py
+include tests/fixtures/paper_migration_reference.json
+recursive-include docs *.md
+recursive-include scripts *.py
+recursive-include reproducibility *.md *.py *.json *.txt
+prune local
+prune legacy
+prune results
+prune .git
+prune .venv
+prune .venv-clean
+prune tmp
+global-exclude *.tex *.pyc *.pyo
+global-exclude __pycache__/*

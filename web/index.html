@@ -103,9 +103,9 @@
                   <p data-i18n="oracleList">First-order, zero-order, hybrid, scheduled и offline replay.</p>
                 </article>
                 <article class="capability-card" data-open-view="optimizers">
-                  <span class="capability-index">ALG</span><strong>25</strong>
+                  <span class="capability-index">ALG</span><strong>22</strong>
                   <h2 data-i18n="optimizerCatalog">Примеров оптимизаторов</h2>
-                  <p data-i18n="optimizerList">12 first-order и 13 zero-order реализаций.</p>
+                  <p data-i18n="optimizerList">14 first-order и 8 zero-order реализации.</p>
                 </article>
                 <article class="capability-card" data-open-view="runner">
                   <span class="capability-index">MET</span><strong>10</strong>
@@ -213,7 +213,7 @@
 
               <section class="work-panel optimizer-catalog-panel">
                 <div class="catalog-toolbar">
-                  <label class="search-box"><span>Q</span><input id="optimizer-search" type="search" placeholder="Поиск по 25 методам…" /></label>
+                  <label class="search-box"><span>Q</span><input id="optimizer-search" type="search" placeholder="Поиск по 22 методам…" /></label>
                   <div class="catalog-actions">
                     <span id="optimizer-selection-count">0 выбрано</span>
                     <button class="outline-button" id="clear-optimizers" type="button" data-i18n="clearSelection">Снять выбор</button>
@@ -321,10 +321,10 @@
                 <div class="inline-fields gym-fields">
                   <label><span>Episode horizon</span><input id="gym-horizon" type="number" value="200" /></label>
                   <label><span>Action mode</span><select id="gym-action"><option value="absolute">absolute</option><option value="delta">delta</option></select></label>
-                  <label><span>Reward</span><select id="gym-reward"><option value="neg_regret">negative regret</option><option value="neg_error">negative error</option></select></label>
+                  <label><span>Reward</span><select id="gym-reward"><option value="neg_value">negative noisy value</option><option value="zero">zero (gradient-only)</option></select></label>
                   <label><span>Geometry</span><select id="gym-geometry"><option value="auto">auto</option><option value="euclidean">euclidean</option><option value="simplex">simplex</option><option value="stiefel">stiefel</option><option value="grassmann">grassmann</option></select></label>
                   <label><span>Max step</span><input id="gym-max-step" type="number" step="any" value="1" /></label>
-                  <label><span>Divergence threshold</span><input id="gym-diverge" type="number" step="any" placeholder="None" /></label>
+                  <label><span>Hidden-error termination disabled</span><input id="gym-diverge" type="number" placeholder="None" disabled /></label>
                   <label><span data-i18n="gymBounds">Границы Gym x</span><div class="joined-inputs"><input id="gym-bound-low" type="number" step="any" value="-10" /><input id="gym-bound-high" type="number" step="any" value="10" /></div></label>
                   <label><span data-i18n="gymInitialX">Начальное Gym x₀</span><input id="gym-initial-x" type="text" placeholder="auto · 0 or 0, 0, …" /></label>
                 </div>

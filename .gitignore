@@ -12,12 +12,38 @@ build/
 
 # Local manuscripts, references, generated figures, notebooks, and run output.
 /local/
-*.tex
+/legacy/
 
 *.csv
 *.json
 !experiment.example.json
+# Small regression inputs required by the public test suite (not run reports).
+!tests/fixtures/paper_migration_reference.json
 
 # Published run outputs are versioned deliberately.
 !/results/
 !/results/**
+
+# Private before/after migration checks must never enter published run output.
+/results/paper_migration/
+/results/default_pipeline/smoke*/
+/results/smoke*/
+/results/final_experiment/smoke*/
+/results/rl_transfer_experiment/smoke*/
+# Interrupted release-candidate attempts: retained locally, not reference scores.
+/results/wind_tracking_v1/reference_060_20261112T062000Z/
+/results/paper_tracking_v3/reference_060_20261112T062000Z/
+/results/rl_transfer_v3/reference_060_20261112T062000Z/
+/.pytest_cache/
+/tmp/
+
+# Keep manuscripts private even under otherwise versioned result directories.
+*.tex
+
+# 0.7.0 publication contains reproduction inputs, not new raw run outputs.
+# Previously tracked historical results are unaffected.
+/results/default_pipeline/
+/results/paper_tracking_v4/
+/results/rl_transfer_v3/
+/results/wind_tracking_v1/
+!/reproducibility/0.7.0/provenance.json

@@ -4,7 +4,7 @@ metric, the reset fix, and end-to-end tracking with Riemannian SGD."""
 import numpy as np
 import pytest
 
-from wind_benchmark.core import (
+from wind_benchmark.core.environment import (
     DynamicEnvironment,
     GrassmannLandscape,
     StationaryDrift,
@@ -14,24 +14,23 @@ from wind_benchmark.core import (
     make_drift,
     make_landscape,
 )
-from wind_benchmark.oracle import FirstOrderOracle
-from wind_benchmark.metrics import (
+from wind_benchmark.core.oracle import FirstOrderOracle
+from wind_benchmark.core.metrics import (
     GrassmannPrincipalAngleMetric,
     MetricsCollection,
     StiefelFrameMetric,
     StiefelGeodesicMetric,
 )
-from wind_benchmark.benchmark import BenchmarkRunner
-from wind_benchmark.manifold import (
+from wind_benchmark.core.runner import BenchmarkRunner
+from wind_benchmark.core.geometry import (
     random_stiefel,
     project_to_stiefel,
     tangent_project,
     retract,
-    geodesic_distance,
     principal_angle_distance,
     cayley_orthogonal,
-    RiemannianSGD,
 )
+from wind_benchmark.algorithms.optimizers import RiemannianSGD
 
 
 # ----------------------------------------------------------------- manifold ops
@@ -60,13 +59,19 @@ def test_tangent_vector_satisfies_constraint():
     assert np.allclose(XtZ + XtZ.T, np.zeros((3, 3)), atol=1e-10)  # skew-symmetric
 
 
-def test_geodesic_distance_zero_at_same_point():
+def test_principal_angle_distance_zero_at_same_point():
     rng = np.random.default_rng(3)
     X = random_stiefel(4, 2, rng)
     # arccos has infinite slope at 1, so the self-distance is ~1e-8, not ~1e-16.
-    assert geodesic_distance(X, X) < 1e-6
+    assert principal_angle_distance(X, X) < 1e-6
     Y = random_stiefel(4, 2, np.random.default_rng(99))
-    assert geodesic_distance(X, Y) > 1e-3
+    assert principal_angle_distance(X, Y) > 1e-3
+
+
+def test_ambiguous_historical_distance_helper_is_not_exported():
+    from wind_benchmark.core import geometry as manifold
+
+    assert not hasattr(manifold, "geodesic_distance")
 
 
 def test_principal_angle_distance_is_invariant_to_basis_rotation():
@@ -199,7 +204,7 @@ def test_riemannian_sgd_tracks_drifting_optimum():
     metrics = MetricsCollection([StiefelFrameMetric(d=d, r=r)])
     runner = BenchmarkRunner(env, oracle, metrics, record_trajectory=True)
 
-    opt = RiemannianSGD(d=d, r=r, lr=0.5)
+    opt = RiemannianSGD(lr=0.5)
     result = runner.run(opt, T=150, x0=x0, seed=42)
 
     hist = result.metrics_history["stiefel_frame_frobenius"]

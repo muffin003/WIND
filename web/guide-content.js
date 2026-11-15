@@ -4,7 +4,7 @@ py -3.11 -m venv .venv
 .\\.venv\\Scripts\\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install -e ".[gym,dev]"
-python -m wind_benchmark.web`;
+python -m wind_benchmark.interfaces.web`;
 
   window.WIND_GUIDES = {
     en: {
@@ -16,7 +16,7 @@ python -m wind_benchmark.web`;
           topics: [
             { title: "Benchmark objective", body: "WIND compares how optimization algorithms track a hidden moving optimum under changing landscapes, drift, noise and information constraints.", formula: String.raw`x_t\longrightarrow\mathcal O_t(x_t)\longrightarrow\theta_{t+1}` },
             { title: "Interaction protocol", body: "At step t the optimizer commits to xₜ, receives only the configured oracle observation, and then the environment advances. Ground-truth θₜ is recorded for evaluation but is never exposed to the optimizer.", bullets: ["No look-ahead into the next environment state", "First- and zero-order information barriers", "Identical seeds reproduce drift and noise"] },
-            { title: "Package architecture", body: "core.py defines environments; oracle.py controls feedback; benchmark.py runs evaluations; metrics.py computes scores; experiment.py contains reference optimizers; gym_env.py exposes the RL adapter." },
+            { title: "Package architecture", body: "core/ contains environments, oracles, runners and metrics; algorithms/ contains the protocol and optimizer catalog; experiments/ defines study pipelines; integrations/ provides Gym/RL adapters; interfaces/ contains CLI and Web; reporting/ contains export helpers and plots." },
             { title: "Scientific guarantees", body: "The test suite checks landscape invariants, temporal consistency, information barriers, metric definitions, result export and deterministic reset behavior.", bullets: ["θₜ is not exposed in Observation", "Regret uses the matching environment state", "Result metadata is sufficient for verification"] },
             { title: "Run locally after downloading", body: "Open PowerShell in the downloaded repository and execute these commands. The last command starts the page at http://127.0.0.1:8765.", code: localRun },
           ],
@@ -81,7 +81,7 @@ python -m wind_benchmark.web`;
           intro: "WindGymEnv presents the same dynamic optimization task as an RL environment without weakening the oracle information barrier.",
           topics: [
             { title: "Actions", body: "Absolute actions propose the next point directly. Delta actions propose a bounded displacement. Geometry projection keeps actions feasible." },
-            { title: "Rewards", body: "Negative regret measures excess objective value; negative error measures geometry-aware distance to the hidden optimum for evaluation." },
+            { title: "Rewards", body: "Reward uses the noisy observed value, or explicit zero for gradient-only feedback. True regret and tracking error are released only after the evaluation session finishes." },
             { title: "Constrained geometry", body: "Simplex actions are projected to probabilities. Stiefel uses orthonormal frames; Grassmann treats bases related by an orthogonal transform as the same subspace." },
           ],
         },
@@ -96,7 +96,7 @@ python -m wind_benchmark.web`;
           topics: [
             { title: "Задача бенчмарка", body: "WIND сравнивает, как алгоритмы отслеживают скрытый движущийся оптимум при разных ландшафтах, дрейфах, шумах и информационных ограничениях.", formula: String.raw`x_t\longrightarrow\mathcal O_t(x_t)\longrightarrow\theta_{t+1}` },
             { title: "Протокол взаимодействия", body: "На шаге t оптимизатор фиксирует xₜ, получает только разрешённое наблюдение оракула, после чего среда переходит к следующему состоянию. Истинное θₜ сохраняется для оценки, но не передаётся алгоритму.", bullets: ["Нет доступа к будущему состоянию среды", "Разделение first-order и zero-order информации", "Одинаковые seeds воспроизводят дрейф и шум"] },
-            { title: "Архитектура пакета", body: "core.py задаёт среды; oracle.py управляет обратной связью; benchmark.py выполняет запуски; metrics.py считает показатели; experiment.py содержит примеры оптимизаторов; gym_env.py реализует RL-адаптер." },
+            { title: "Архитектура пакета", body: "core/ содержит среды, оракулы, исполнители и метрики; algorithms/ — протокол и каталог алгоритмов; experiments/ — сценарии исследований; integrations/ — Gym/RL-адаптеры; interfaces/ — CLI и Web; reporting/ — экспорт и визуализацию." },
             { title: "Научные гарантии", body: "Тесты проверяют инварианты ландшафтов, временную согласованность, информационный барьер, определения метрик, экспорт и детерминированный reset.", bullets: ["θₜ не передаётся внутри Observation", "Regret использует соответствующее состояние среды", "Метаданных результата достаточно для проверки"] },
             { title: "Локальный запуск после скачивания", body: "Откройте PowerShell в скачанном репозитории и выполните команды ниже. Последняя команда откроет страницу на http://127.0.0.1:8765.", code: localRun },
           ],
@@ -161,7 +161,7 @@ python -m wind_benchmark.web`;
           intro: "WindGymEnv представляет ту же динамическую задачу как RL-среду, не нарушая информационный барьер оракула.",
           topics: [
             { title: "Действия", body: "Absolute action напрямую предлагает следующую точку. Delta action задаёт ограниченное смещение. Проекция сохраняет допустимую геометрию." },
-            { title: "Награды", body: "Negative regret измеряет избыточное значение функции; negative error — геометрическое расстояние до скрытого оптимума для оценки." },
+            { title: "Награды", body: "Награда использует наблюдаемое зашумлённое значение либо явно заданный ноль для градиентного режима. Истинные regret и tracking error доступны после завершения оценочной сессии." },
             { title: "Ограниченная геометрия", body: "Simplex проецируется на вероятности. Stiefel использует ортонормированные фреймы, а Grassmann считает эквивалентными базисы, связанные ортогональным преобразованием." },
           ],
         },
@@ -176,7 +176,7 @@ python -m wind_benchmark.web`;
           topics: [
             { title: "基准目标", body: "WIND 比较优化算法在不同函数地形、漂移、噪声和信息约束下跟踪隐藏移动最优点的能力。", formula: String.raw`x_t\longrightarrow\mathcal O_t(x_t)\longrightarrow\theta_{t+1}` },
             { title: "交互协议", body: "在第 t 步，优化器先提交 xₜ，只获得预言机允许的观测，然后环境才更新。真实 θₜ 仅用于评估，不会暴露给算法。", bullets: ["不能预知未来环境状态", "严格区分一阶与零阶信息", "相同 seed 可复现漂移和噪声"] },
-            { title: "软件架构", body: "core.py 定义环境；oracle.py 控制反馈；benchmark.py 执行评测；metrics.py 计算指标；experiment.py 包含参考优化器；gym_env.py 提供 RL 适配器。" },
+            { title: "软件架构", body: "core/ 包含环境、预言机、运行器和指标；algorithms/ 包含协议和优化器目录；experiments/ 定义实验流程；integrations/ 提供 Gym/RL 适配器；interfaces/ 提供 CLI 和 Web；reporting/ 负责导出和可视化。" },
             { title: "科学保证", body: "测试套件检查函数地形不变量、时间一致性、信息屏障、指标定义、结果导出和确定性 reset。", bullets: ["Observation 不暴露 θₜ", "Regret 使用匹配的环境状态", "结果元数据足以进行验证"] },
             { title: "下载后的本地启动", body: "在下载的仓库中打开 PowerShell 并执行以下命令。最后一条命令会在 http://127.0.0.1:8765 启动页面。", code: localRun },
           ],
@@ -214,7 +214,7 @@ python -m wind_benchmark.web`;
         ] },
         gym: { title: "Gymnasium 适配器", intro: "WindGymEnv 将相同动态优化任务表示为 RL 环境，同时保持预言机的信息屏障。", topics: [
           { title: "动作", body: "Absolute action 直接提出下一点；delta action 提出有界位移；几何投影保证动作可行。" },
-          { title: "奖励", body: "Negative regret 衡量额外目标值；negative error 用几何距离评价隐藏最优点跟踪。" },
+          { title: "奖励", body: "奖励使用含噪观测值，或在仅梯度模式下显式设为零。真实遗憾和跟踪误差仅在评估会话结束后公开。" },
           { title: "约束几何", body: "Simplex 投影到概率分布；Stiefel 使用正交标架；Grassmann 将正交变换相关的基视为同一子空间。" },
         ] },
       },
@@ -261,43 +261,110 @@ python -m wind_benchmark.web`;
   };
 
   const optimizerDescriptions = {
-    SGD: ["Gradient descent with optional momentum.", "Градиентный спуск с необязательным импульсом.", "带可选动量的梯度下降。"],
-    SGD_Polyak: ["Averages SGD iterates to reduce variance.", "Усредняет итерации SGD для снижения дисперсии.", "通过平均 SGD 迭代降低方差。"],
-    HeavyBall: ["Uses persistent velocity to accelerate smooth directions.", "Использует инерционную скорость для ускорения по гладким направлениям.", "使用持续速度加速平滑方向。"],
-    LookaheadNesterov: ["Evaluates each gradient at the extrapolated public point.", "Вычисляет каждый градиент в экстраполированной публичной точке.", "在外推的公开点计算每个梯度。"],
-    Adam: ["Combines first and second gradient moments with bias correction.", "Сочетает первый и второй моменты градиента с коррекцией смещения.", "结合一阶和二阶梯度矩并进行偏差修正。"],
-    CoupledL2Adam: ["Adam with a coupled L2 term added before moment updates.", "Adam с coupled L2-членом, добавляемым до обновления моментов.", "在矩更新前加入耦合 L2 项的 Adam。"],
-    AMSGrad: ["Uses a non-decreasing second-moment maximum for stability.", "Использует неубывающий максимум второго момента для устойчивости.", "使用单调不减的二阶矩最大值增强稳定性。"],
-    SMD: ["Entropy mirror descent that naturally preserves the simplex.", "Энтропийный зеркальный спуск, сохраняющий симплекс.", "自然保持单纯形的熵镜像下降。"],
-    RDA: ["Accumulates gradients before an L1 soft-threshold update.", "Накапливает градиенты перед L1 soft-threshold обновлением.", "累积梯度后执行 L1 软阈值更新。"],
-    ProxSGD: ["Separates a gradient step from an L1 proximal step.", "Разделяет градиентный и L1 proximal шаги.", "将梯度步骤与 L1 近端步骤分离。"],
-    AdaptiveLR: ["Shrinks the learning rate as the gradient norm grows.", "Уменьшает шаг при росте нормы градиента.", "随梯度范数增大而缩小学习率。"],
-    SignSGD: ["Uses only coordinate-wise gradient signs.", "Использует только покоординатные знаки градиента.", "仅使用逐坐标梯度符号。"],
-    RandomSearch: ["Samples around the best point observed so far.", "Сэмплирует вокруг лучшей найденной точки.", "围绕当前最佳点进行采样。"],
-    OnePointTemporalSecant: ["Combines the new value with the preceding value and Rademacher direction.", "Объединяет новое значение с предыдущим значением и направлением Радемахера.", "将新函数值与前一函数值及 Rademacher 方向组合。"],
-    FiniteDiffCentral: ["Uses symmetric coordinate queries for a finite-difference gradient.", "Использует симметричные координатные запросы для конечной разности.", "使用对称坐标查询估计有限差分梯度。"],
-    NormalizedRandomSecant: ["Normalizes a value difference along the displacement between successive queries.", "Нормирует разность значений вдоль смещения между последовательными запросами.", "沿连续查询之间的位移归一化函数值差。"],
-    ScaledTemporalSecant: ["Uses a scaled Rademacher secant formed across successive outer times.", "Использует масштабированную секущую Радемахера между последовательными внешними моментами.", "使用跨连续外部时刻形成的缩放 Rademacher 割线。"],
-    GaussianTemporalSecant: ["Uses a clipped Gaussian temporal secant.", "Использует ограниченную гауссовскую временную секущую.", "使用截断的高斯时间割线。"],
-    SignedGaussianTemporalSecant: ["Updates with the sign of a Gaussian temporal secant.", "Обновляется по знаку гауссовской временной секущей.", "使用高斯时间割线的符号更新。"],
-    QuadraticInterpolation: ["Fits a one-dimensional quadratic along a random direction.", "Строит одномерную квадратичную модель вдоль случайного направления.", "沿随机方向拟合一维二次模型。"],
-    ShrinkingTemporalSecant: ["Applies shrinking perturbation and step scales to a temporal secant.", "Применяет убывающие масштабы возмущения и шага к временной секущей.", "对时间割线使用递减的扰动和步长尺度。"],
-    DiminishingGaussianSecant: ["Combines a normalized Gaussian temporal secant with a diminishing step.", "Сочетает нормированную гауссовскую временную секущую с убывающим шагом.", "将归一化高斯时间割线与递减步长结合。"],
-    MomentumTemporalSecant: ["Adds momentum to a stateful Rademacher temporal secant.", "Добавляет импульс к временной секущей Радемахера с состоянием.", "为有状态 Rademacher 时间割线加入动量。"],
-    EliteCovarianceSearch: ["Updates a sampling distribution from the empirical covariance of elite candidates.", "Обновляет распределение по эмпирической ковариации лучших кандидатов.", "根据精英候选的经验协方差更新采样分布。"],
-    DistanceScaledExploration: ["Scales a random exploration step by distances to previous queries.", "Масштабирует случайный поисковый шаг расстояниями до предыдущих запросов.", "按与先前查询的距离缩放随机探索步长。"],
-  };
+  "SGD": [
+    "Gradient step; no hidden momentum.",
+    "Gradient step; no hidden momentum.",
+    "Gradient step; no hidden momentum."
+  ],
+  "PolyakRuppertSGD": [
+    "Diminishing-step raw SGD; separate uniform average of updated iterates.",
+    "Diminishing-step raw SGD; separate uniform average of updated iterates.",
+    "Diminishing-step raw SGD; separate uniform average of updated iterates."
+  ],
+  "HeavyBall": [
+    "Gradient at the current point; zero initial velocity.",
+    "Gradient at the current point; zero initial velocity.",
+    "Gradient at the current point; zero initial velocity."
+  ],
+  "Nesterov": [
+    "Gradient at the extrapolated point; recommendation stored separately.",
+    "Gradient at the extrapolated point; recommendation stored separately.",
+    "Gradient at the extrapolated point; recommendation stored separately."
+  ],
+  "Adam": [
+    "First and second moments with both bias corrections.",
+    "First and second moments with both bias corrections.",
+    "First and second moments with both bias corrections."
+  ],
+  "AdamW": [
+    "Decoupled weight decay outside gradient moments.",
+    "Decoupled weight decay outside gradient moments.",
+    "Decoupled weight decay outside gradient moments."
+  ],
+  "AMSGrad": [
+    "Maximum of raw second moments; no bias correction; constant-step variant.",
+    "Maximum of raw second moments; no bias correction; constant-step variant.",
+    "Maximum of raw second moments; no bias correction; constant-step variant."
+  ],
+  "SignSGD": [
+    "Coordinatewise sign of the observed gradient.",
+    "Coordinatewise sign of the observed gradient.",
+    "Coordinatewise sign of the observed gradient."
+  ],
+  "ProxSGD": [
+    "Gradient step followed by exact L1 soft thresholding.",
+    "Gradient step followed by exact L1 soft thresholding.",
+    "Gradient step followed by exact L1 soft thresholding."
+  ],
+  "RDA": [
+    "L1 regularized dual averaging, quadratic prox, beta_t=sqrt(t)/eta; x0=0.",
+    "L1 regularized dual averaging, quadratic prox, beta_t=sqrt(t)/eta; x0=0.",
+    "L1 regularized dual averaging, quadratic prox, beta_t=sqrt(t)/eta; x0=0."
+  ],
+  "SPSA": [
+    "One fresh minus-plus pair; signs normalized by sqrt(d); no dimension multiplier.",
+    "One fresh minus-plus pair; signs normalized by sqrt(d); no dimension multiplier.",
+    "One fresh minus-plus pair; signs normalized by sqrt(d); no dimension multiplier."
+  ],
+  "KieferWolfowitz": [
+    "Central coordinate differences: 2d calls per complete update.",
+    "Central coordinate differences: 2d calls per complete update.",
+    "Central coordinate differences: 2d calls per complete update."
+  ],
+  "GaussianZOSGD": [
+    "Symmetric unnormalized Gaussian directions; no dimension factor.",
+    "Symmetric unnormalized Gaussian directions; no dimension factor.",
+    "Symmetric unnormalized Gaussian directions; no dimension factor."
+  ],
+  "SphericalZOSGD": [
+    "Symmetric unit-sphere directions; factor d; m independent pairs.",
+    "Symmetric unit-sphere directions; factor d; m independent pairs.",
+    "Symmetric unit-sphere directions; factor d; m independent pairs."
+  ],
+  "ExponentiatedGradient": [
+    "Persistent log-space simplex update; zero support is invariant.",
+    "Persistent log-space simplex update; zero support is invariant.",
+    "Persistent log-space simplex update; zero support is invariant."
+  ],
+  "ProjectedGradient": [
+    "Gradient step followed by exact Euclidean simplex projection.",
+    "Gradient step followed by exact Euclidean simplex projection.",
+    "Gradient step followed by exact Euclidean simplex projection."
+  ],
+  "RiemannianSGD": [
+    "Embedded-Euclidean tangent projection and polar retraction.",
+    "Embedded-Euclidean tangent projection and polar retraction.",
+    "Embedded-Euclidean tangent projection and polar retraction."
+  ]
+};
+  for (const [name, text] of Object.entries({
+    AdaGrad: "Diagonal accumulated squared gradients; no forgetting; epsilon outside sqrt.",
+    OnePointSPSA: "One fresh value, unnormalized Bernoulli signs, no baseline subtraction.",
+    ZOSignSGD: "Uniform sphere directions; fresh shared baseline; sign after averaging; m+1 calls.",
+    RandomSearch: "Fresh strict comparison; Gaussian sigma/sqrt(d) candidate; independent randomized query order.",
+    AcceleratedSPSA: "Constant-coefficient tracking adaptation; normalized signs; two queries; no source-theorem guarantee."
+  })) optimizerDescriptions[name] = [text, text, text];
   window.WIND_OPTIMIZER_TEXT = Object.fromEntries(Object.entries(optimizerDescriptions).map(([name, values]) => [name, { en: values[0], ru: values[1], zh: values[2] }]));
 
   window.WIND_PARAMETER_HELP = {
-    en: { lr: "learning rate", lr0: "base learning rate", momentum: "velocity weight", beta: "momentum coefficient", beta1: "first-moment decay", beta2: "second-moment decay", eps: "numerical stabilizer", weight_decay: "L2 decay", lambda_reg: "L1 regularization", scale: "search radius", perturb: "probe displacement", h: "finite-difference spacing", mu: "smoothing radius", cn: "initial perturbation scale", sigma: "sampling spread", population_size: "population size; 0 selects automatically" },
-    ru: { lr: "шаг обучения", lr0: "базовый шаг", momentum: "вес скорости", beta: "коэффициент импульса", beta1: "затухание первого момента", beta2: "затухание второго момента", eps: "численная стабилизация", weight_decay: "L2-регуляризация", lambda_reg: "L1-регуляризация", scale: "радиус поиска", perturb: "величина пробного возмущения", h: "шаг конечной разности", mu: "радиус сглаживания", cn: "начальный масштаб возмущения", sigma: "разброс сэмплирования", population_size: "размер популяции; 0 выбирается автоматически" },
-    zh: { lr: "学习率", lr0: "基础学习率", momentum: "速度权重", beta: "动量系数", beta1: "一阶矩衰减", beta2: "二阶矩衰减", eps: "数值稳定项", weight_decay: "L2 衰减", lambda_reg: "L1 正则化", scale: "搜索半径", perturb: "探测扰动幅度", h: "有限差分间隔", mu: "平滑半径", cn: "初始扰动尺度", sigma: "采样分布宽度", population_size: "种群大小；0 表示自动选择" },
+    en: { lr: "learning rate", lr0: "base learning rate", momentum: "velocity weight", beta: "momentum or perturbation parameter; see algorithm formula", alpha: "tracking step", r: "probe radius", a: "constant acceleration coefficient", delta: "constant gamma", beta1: "first-moment decay", beta2: "second-moment decay", eps: "numerical stabilizer", weight_decay: "L2 decay", lam: "L1 regularization", m: "directions per update", scale: "search radius", perturb: "probe displacement", h: "difference spacing or accelerated step; see formula", mu: "smoothing radius", cn: "initial perturbation scale", sigma: "sampling spread", population_size: "population size; 0 selects automatically" },
+    ru: { lr: "шаг обучения", lr0: "базовый шаг", momentum: "вес скорости", beta: "импульс или радиус возмущения — см. формулу", alpha: "шаг tracking", r: "радиус возмущения", a: "постоянный коэффициент ускорения", delta: "постоянное gamma", beta1: "затухание первого момента", beta2: "затухание второго момента", eps: "численная стабилизация", weight_decay: "L2-регуляризация", lam: "L1-регуляризация", m: "направлений на обновление", scale: "радиус поиска", perturb: "величина пробного возмущения", h: "шаг конечной разности", mu: "радиус сглаживания", cn: "начальный масштаб возмущения", sigma: "разброс сэмплирования", population_size: "размер популяции; 0 выбирается автоматически" },
+    zh: { lr: "学习率", lr0: "基础学习率", momentum: "速度权重", beta: "动量系数", beta1: "一阶矩衰减", beta2: "二阶矩衰减", eps: "数值稳定项", weight_decay: "L2 衰减", lam: "L1 正则化", m: "独立方向对数", scale: "搜索半径", perturb: "探测扰动幅度", h: "有限差分间隔", mu: "平滑半径", cn: "初始扰动尺度", sigma: "采样分布宽度", population_size: "种群大小；0 表示自动选择" },
   };
 
   window.WIND_SCENARIOS = [
     { id: "smooth", labels: { en: "Smooth tracking", ru: "Плавное отслеживание", zh: "平滑跟踪" }, descriptions: { en: "Quadratic + linear drift + SGD", ru: "Quadratic + linear drift + SGD", zh: "Quadratic + 线性漂移 + SGD" }, landscape: "quadratic", drift: "linear", oracle: "first-order", optimizer: "SGD", valueNoise: "gaussian", gradNoise: "gaussian" },
-    { id: "noisy-zo", labels: { en: "Noisy zero-order", ru: "Шумный zero-order", zh: "含噪零阶" }, descriptions: { en: "Random walk + value noise + temporal secant", ru: "Random walk + шум значения + временная секущая", zh: "随机游走 + 函数值噪声 + 时间割线" }, landscape: "quadratic", drift: "random_walk", oracle: "zero-order", optimizer: "ScaledTemporalSecant", valueNoise: "gaussian", gradNoise: "none" },
-    { id: "simplex", labels: { en: "Simplex allocation", ru: "Распределение на симплексе", zh: "单纯形分配" }, descriptions: { en: "Simplex + cyclic drift + mirror descent", ru: "Simplex + cyclic drift + mirror descent", zh: "Simplex + 周期漂移 + 镜像下降" }, landscape: "simplex", drift: "cyclic", oracle: "first-order", optimizer: "SMD", valueNoise: "gaussian", gradNoise: "gaussian" },
+    { id: "noisy-zo", labels: { en: "Noisy zero-order", ru: "Шумный zero-order", zh: "含噪零阶" }, descriptions: { en: "Random walk + value noise + fresh SPSA pairs", ru: "Random walk + шум значения + свежие пары SPSA", zh: "随机游走 + 函数值噪声 + SPSA" }, landscape: "quadratic", drift: "random_walk", oracle: "zero-order", optimizer: "SPSA", valueNoise: "gaussian", gradNoise: "none" },
+    { id: "simplex", labels: { en: "Simplex allocation", ru: "Распределение на симплексе", zh: "单纯形分配" }, descriptions: { en: "Simplex + cyclic drift + mirror descent", ru: "Simplex + cyclic drift + mirror descent", zh: "Simplex + 周期漂移 + 镜像下降" }, landscape: "simplex", drift: "cyclic", oracle: "first-order", optimizer: "ExponentiatedGradient", valueNoise: "gaussian", gradNoise: "gaussian" },
   ];
 })();

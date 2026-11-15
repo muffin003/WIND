@@ -1,14 +1,15 @@
 [build-system]
-requires = ["setuptools>=69", "wheel"]
+requires = ["setuptools>=77.0.3", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "wind-benchmark"
-version = "0.3.0"
+version = "0.7.0"
 description = "Benchmark for stochastic optimization in non-stationary environments"
 readme = "README.md"
 requires-python = ">=3.11"
-license = {file = "LICENSE"}
+license = "MIT"
+license-files = ["LICENSE"]
 dependencies = [
   "matplotlib>=3.8,<4",
   "numpy>=1.26,<3",
@@ -17,19 +18,34 @@ dependencies = [
   "scipy>=1.12,<2",
   "seaborn>=0.13,<1",
   "tqdm>=4.66,<5",
+  "threadpoolctl>=3.1,<4",
 ]
 
 [project.optional-dependencies]
 gym = ["gymnasium>=1.0,<2"]
+rl = ["gymnasium>=1.0,<2", "stable-baselines3==2.9.2", "torch>=2.8,<3"]
 dev = ["black>=24,<27", "pytest>=8,<10"]
 
 [project.scripts]
-wind-benchmark = "wind_benchmark.cli:main"
-wind-benchmark-ui = "wind_benchmark.web:main"
+wind-benchmark = "wind_benchmark.interfaces.cli:main"
+wind-benchmark-ui = "wind_benchmark.interfaces.web:main"
+wind-canonical = "wind_benchmark.experiments.standard:main"
 
 [tool.setuptools]
-package-dir = {wind_benchmark = "src"}
-packages = ["wind_benchmark"]
+package-dir = {wind_benchmark = "src", "wind_benchmark._web" = "web"}
+packages = [
+  "wind_benchmark",
+  "wind_benchmark.core",
+  "wind_benchmark.algorithms",
+  "wind_benchmark.experiments",
+  "wind_benchmark.integrations",
+  "wind_benchmark.interfaces",
+  "wind_benchmark.reporting",
+  "wind_benchmark._web",
+]
+
+[tool.setuptools.package-data]
+"wind_benchmark._web" = ["*.html", "*.css", "*.js"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -37,3 +53,4 @@ addopts = "-q"
 
 [tool.black]
 target-version = ["py311"]
+extend-exclude = '^/(legacy|local)/'

@@ -57,156 +57,183 @@ const NOISE_FORMULAS = {
 };
 
 const OPTIMIZERS = [
-  ["SGD", "first-order", { lr: 0.1, momentum: 0 }, "vₜ = μvₜ₋₁ − ηgₜ;  xₜ₊₁ = xₜ + vₜ"],
-  ["SGD_Polyak", "first-order", { lr: 0.1 }, "zₜ = xₜ − ηgₜ;  x̄ₜ = (1 − 1/t)x̄ₜ₋₁ + zₜ/t"],
-  ["HeavyBall", "first-order", { lr: 0.1, beta: 0.9 }, "vₜ = βvₜ₋₁ − ηgₜ;  xₜ₊₁ = xₜ + vₜ"],
-  ["LookaheadNesterov", "first-order", { lr: 0.05, beta: 0.9 }, "zₜ₊₁ = yₜ − ηgₜ;  yₜ₊₁ = zₜ₊₁ + β(zₜ₊₁ − zₜ)"],
-  ["Adam", "first-order", { lr: 0.001, beta1: 0.9, beta2: 0.999, eps: 1e-8 }, "mₜ = β₁mₜ₋₁ + (1−β₁)gₜ;  vₜ = β₂vₜ₋₁ + (1−β₂)gₜ²;  xₜ₊₁ = xₜ − ηm̂ₜ/(√v̂ₜ+ε)"],
-  ["CoupledL2Adam", "first-order", { lr: 0.001, beta1: 0.9, beta2: 0.999, eps: 1e-8, weight_decay: 0.01 }, "g̃ₜ = gₜ + λxₜ;  xₜ₊₁ = xₜ − ηm̂(g̃ₜ)/(√v̂(g̃ₜ)+ε)"],
-  ["AMSGrad", "first-order", { lr: 0.001, beta1: 0.9, beta2: 0.999, eps: 1e-8 }, "v̂ₜ = max(v̂ₜ₋₁, vₜ);  xₜ₊₁ = xₜ − ηm̂ₜ/(√v̂ₜ+ε)"],
-  ["SMD", "first-order", { lr: 0.1 }, "xₜ₊₁,ᵢ = xₜ,ᵢ exp(−ηgₜ,ᵢ) / Σⱼ xₜ,ⱼ exp(−ηgₜ,ⱼ)"],
-  ["RDA", "first-order", { lr: 0.1, lambda_reg: 0.01 }, "Gₜ = Σₛ₌₁ᵗ gₛ;  xₜ₊₁ = soft(−ηGₜ, ηλt)"],
-  ["ProxSGD", "first-order", { lr: 0.1, lambda_reg: 0.01 }, "xₜ₊₁ = proxηλ‖·‖₁(xₜ − ηgₜ) = soft(xₜ − ηgₜ, ηλ)"],
-  ["AdaptiveLR", "first-order", { lr0: 0.1 }, "ηₜ = η₀/(1+‖gₜ‖₂);  xₜ₊₁ = xₜ − ηₜgₜ"],
-  ["SignSGD", "first-order", { lr: 0.05 }, "xₜ₊₁ = xₜ − η sign(gₜ)"],
-  ["RandomSearch", "zero-order", { lr: 0.1, scale: 0.5 }, "xₜ₊₁ = xbest + σ εₜ,  εₜ ~ N(0,I)"],
-  ["OnePointTemporalSecant", "zero-order", { lr: 0.005, perturb: 0.1 }, "ĝₜ = (yₜ−yₜ₋₁)Δₜ₋₁/c;  zₜ = qₜ₋₁ − η clip(ĝₜ);  qₜ₊₁=zₜ+cΔₜ"],
-  ["FiniteDiffCentral", "zero-order", { lr: 0.02, h: 0.0001 }, "ĝₜ,ᵢ = [f(xₜ+heᵢ)−f(xₜ−heᵢ)]/(2h);  xₜ₊₁ = xₜ − ηĝₜ"],
-  ["NormalizedRandomSecant", "zero-order", { lr: 0.02, h: 0.0001 }, "ĝₜ = (yₜ−yₜ₋₁)(qₜ−qₜ₋₁)/‖qₜ−qₜ₋₁‖²;  zₜ=qₜ₋₁−ηĝₜ"],
-  ["ScaledTemporalSecant", "zero-order", { lr: 0.005, perturb: 0.1 }, "ĝₜ = (yₜ−yₜ₋₁)Δₜ₋₁/(2c);  zₜ=qₜ₋₁−η clip(ĝₜ)"],
-  ["GaussianTemporalSecant", "zero-order", { lr: 0.005, mu: 0.01 }, "ĝₜ = (yₜ−yₜ₋₁)(qₜ−qₜ₋₁)/‖qₜ−qₜ₋₁‖²;  zₜ=qₜ₋₁−ηĝₜ"],
-  ["SignedGaussianTemporalSecant", "zero-order", { lr: 0.005, mu: 0.01 }, "zₜ=qₜ₋₁−η sign((yₜ−yₜ₋₁)(qₜ−qₜ₋₁))"],
-  ["QuadraticInterpolation", "zero-order", { lr: 0.1 }, "q(s)=as²+bs+f₀;  s* = clip(−b/(2a), −2, 2);  xₜ₊₁=xₜ+s*d"],
-  ["ShrinkingTemporalSecant", "zero-order", { lr: 0.005, cn: 0.1 }, "cₙ=c/√n;  ĝₙ=(yₙ−yₙ₋₁)Δₙ₋₁/(2cₙ);  zₙ=qₙ₋₁−ηĝₙ/√n"],
-  ["DiminishingGaussianSecant", "zero-order", { lr: 0.005 }, "ĝₜ=(yₜ−yₜ₋₁)(qₜ−qₜ₋₁)/‖qₜ−qₜ₋₁‖²;  zₜ=qₜ₋₁−ηĝₜ/√t"],
-  ["MomentumTemporalSecant", "zero-order", { lr: 0.005, perturb: 0.1, beta: 0.9 }, "ĝₜ=(yₜ−yₜ₋₁)Δₜ₋₁/(2c);  mₜ=βmₜ₋₁+(1−β)ĝₜ"],
-  ["EliteCovarianceSearch", "zero-order", { sigma: 0.5, population_size: 0 }, "xᵢ ~ N(mₜ,Cₜ);  mₜ₊₁ = mean(elite(xᵢ));  Cₜ₊₁ = cov(elite(xᵢ))"],
-  ["DistanceScaledExploration", "zero-order", { beta: 2 }, "qₜ₊₁ = qₜ + clip(βrₜ,0,2)uₜ,  ‖uₜ‖₂=1"],
-].map(([name, order, params, formula]) => ({ name, order, params, formula }));
-
-const optimizerStages = (...stages) => String.raw`\begin{aligned}`
-  + stages.map((stage, index) => String.raw`${index + 1}.\quad &${stage}`).join(String.raw`\\[5pt]`)
-  + String.raw`\end{aligned}`;
-
-const OPTIMIZER_LATEX = {
-  SGD: optimizerStages(
-    String.raw`v_t=\mu v_{t-1}-\eta g_t`,
-    String.raw`x_{t+1}=x_t+v_t`,
-  ),
-  SGD_Polyak: optimizerStages(
-    String.raw`z_t=x_t-\eta g_t`,
-    String.raw`\bar x_t=\left(1-\frac1t\right)\bar x_{t-1}+\frac1t z_t`,
-  ),
-  HeavyBall: optimizerStages(
-    String.raw`v_t=\beta v_{t-1}-\eta g_t`,
-    String.raw`x_{t+1}=x_t+v_t`,
-  ),
-  LookaheadNesterov: optimizerStages(
-    String.raw`z_{t+1}=y_t-\eta g_t`,
-    String.raw`y_{t+1}=z_{t+1}+\beta(z_{t+1}-z_t)`,
-  ),
-  Adam: optimizerStages(
-    String.raw`m_t=\beta_1m_{t-1}+(1-\beta_1)g_t`,
-    String.raw`v_t=\beta_2v_{t-1}+(1-\beta_2)g_t^2`,
-    String.raw`\hat m_t=\frac{m_t}{1-\beta_1^t},\qquad \hat v_t=\frac{v_t}{1-\beta_2^t}`,
-    String.raw`x_{t+1}=x_t-\eta\frac{\hat m_t}{\sqrt{\hat v_t}+\varepsilon}`,
-  ),
-  CoupledL2Adam: optimizerStages(
-    String.raw`\widetilde g_t=g_t+\lambda x_t`,
-    String.raw`m_t=\beta_1m_{t-1}+(1-\beta_1)\widetilde g_t`,
-    String.raw`v_t=\beta_2v_{t-1}+(1-\beta_2)\widetilde g_t^2`,
-    String.raw`x_{t+1}=x_t-\eta\frac{\hat m_t}{\sqrt{\hat v_t}+\varepsilon}`,
-  ),
-  AMSGrad: optimizerStages(
-    String.raw`m_t=\beta_1m_{t-1}+(1-\beta_1)g_t`,
-    String.raw`v_t=\beta_2v_{t-1}+(1-\beta_2)g_t^2`,
-    String.raw`\widehat v_t=\max(\widehat v_{t-1},v_t)`,
-    String.raw`x_{t+1}=x_t-\eta\frac{\widehat m_t}{\sqrt{\widehat v_t}+\varepsilon}`,
-  ),
-  SMD: optimizerStages(
-    String.raw`w_{t+1,i}=x_{t,i}\exp(-\eta g_{t,i})`,
-    String.raw`x_{t+1,i}=\frac{w_{t+1,i}}{\sum_jw_{t+1,j}}`,
-  ),
-  RDA: optimizerStages(
-    String.raw`G_t=\sum_{s=1}^{t}g_s`,
-    String.raw`x_{t+1}=\operatorname{soft}(-\eta G_t,\eta\lambda t)`,
-  ),
-  ProxSGD: optimizerStages(
-    String.raw`z_t=x_t-\eta g_t`,
-    String.raw`x_{t+1}=\operatorname{prox}_{\eta\lambda\|\cdot\|_1}(z_t)=\operatorname{soft}(z_t,\eta\lambda)`,
-  ),
-  AdaptiveLR: optimizerStages(
-    String.raw`\eta_t=\frac{\eta_0}{1+\|g_t\|_2}`,
-    String.raw`x_{t+1}=x_t-\eta_tg_t`,
-  ),
-  SignSGD: String.raw`x_{t+1}=x_t-\eta\,\operatorname{sign}(g_t)`,
-  RandomSearch: optimizerStages(
-    String.raw`\varepsilon_t\sim\mathcal N(0,I)`,
-    String.raw`x_{t+1}=x_{\mathrm{best}}+\sigma\varepsilon_t`,
-  ),
-  OnePointTemporalSecant: optimizerStages(
-    String.raw`\widehat g_t=\frac{y_t-y_{t-1}}{c}\Delta_{t-1}`,
-    String.raw`z_t=q_{t-1}-\eta\operatorname{clip}(\widehat g_t,-10,10)`,
-    String.raw`q_{t+1}=z_t+c\Delta_t`,
-  ),
-  FiniteDiffCentral: optimizerStages(
-    String.raw`y_{t,i}^{\pm}=f(x_t\pm he_i)`,
-    String.raw`\widehat g_{t,i}=\frac{y_{t,i}^{+}-y_{t,i}^{-}}{2h}`,
-    String.raw`x_{t+1}=x_t-\eta\widehat g_t`,
-  ),
-  NormalizedRandomSecant: optimizerStages(
-    String.raw`d_t=q_t-q_{t-1}`,
-    String.raw`\widehat g_t=\frac{y_t-y_{t-1}}{(\|d_t\|_2+10^{-8})^2}d_t`,
-    String.raw`z_t=q_{t-1}-\eta\widehat g_t`,
-  ),
-  ScaledTemporalSecant: optimizerStages(
-    String.raw`\widehat g_t=\frac{y_t-y_{t-1}}{2c}\Delta_{t-1}`,
-    String.raw`z_t=q_{t-1}-\eta\operatorname{clip}(\widehat g_t,-10,10)`,
-    String.raw`q_{t+1}=z_t+c\Delta_t`,
-  ),
-  GaussianTemporalSecant: optimizerStages(
-    String.raw`d_t=q_t-q_{t-1}`,
-    String.raw`\widehat g_t=\frac{y_t-y_{t-1}}{\|d_t\|_2^2+10^{-12}}d_t`,
-    String.raw`z_t=q_{t-1}-\eta\operatorname{clip}(\widehat g_t,-10^3,10^3)`,
-  ),
-  SignedGaussianTemporalSecant: optimizerStages(
-    String.raw`d_t=q_t-q_{t-1}`,
-    String.raw`s_t=\operatorname{sign}\!\left(\frac{(y_t-y_{t-1})d_t}{\|d_t\|_2+10^{-8}}\right)`,
-    String.raw`z_t=q_{t-1}-\eta s_t`,
-  ),
-  QuadraticInterpolation: optimizerStages(
-    String.raw`q(s)=as^2+bs+f_0`,
-    String.raw`s^*=\operatorname{clip}\!\left(-\frac{b}{2a},-2,2\right)`,
-    String.raw`x_{t+1}=x_t+s^*d_t`,
-  ),
-  ShrinkingTemporalSecant: optimizerStages(
-    String.raw`c_n=\frac{c}{\sqrt n}`,
-    String.raw`\widehat g_n=\frac{y_n-y_{n-1}}{2c_n}\Delta_{n-1}`,
-    String.raw`z_n=q_{n-1}-\frac{\eta}{\sqrt n}\operatorname{clip}(\widehat g_n,-10,10)`,
-  ),
-  DiminishingGaussianSecant: optimizerStages(
-    String.raw`d_t=q_t-q_{t-1}`,
-    String.raw`\widehat g_t=\frac{y_t-y_{t-1}}{(\|d_t\|_2+10^{-8})^2}d_t`,
-    String.raw`z_t=q_{t-1}-\frac{\eta}{\sqrt t}\widehat g_t`,
-  ),
-  MomentumTemporalSecant: optimizerStages(
-    String.raw`\widehat g_t=\frac{y_t-y_{t-1}}{2c}\Delta_{t-1}`,
-    String.raw`m_t=\beta m_{t-1}+(1-\beta)\widehat g_t`,
-    String.raw`z_t=q_{t-1}-\eta m_t`,
-  ),
-  EliteCovarianceSearch: optimizerStages(
-    String.raw`x_i\sim\mathcal N(m_t,C_t)`,
-    String.raw`E_t=\operatorname{elite}(x_1,\ldots,x_\lambda)`,
-    String.raw`m_{t+1}=\operatorname{mean}(E_t)`,
-    String.raw`C_{t+1}=\operatorname{cov}(E_t)`,
-  ),
-  DistanceScaledExploration: optimizerStages(
-    String.raw`r_t=\operatorname{mean}_{s<t}\|q_t-q_s\|_2`,
-    String.raw`\|u_t\|_2=1`,
-    String.raw`q_{t+1}=q_t+\operatorname{clip}(\beta r_t,0,2)u_t`,
-  ),
-};
-OPTIMIZERS.forEach((optimizer) => { optimizer.formula = OPTIMIZER_LATEX[optimizer.name]; });
+  {
+    "name": "SGD",
+    "order": "first-order",
+    "params": {
+      "lr": 0.1
+    },
+    "formula": "x_{t+1}=x_t-\\eta g(x_t)"
+  },
+  {
+    "name": "PolyakRuppertSGD",
+    "order": "first-order",
+    "params": {
+      "lr": 0.1
+    },
+    "formula": "z_t=z_{t-1}-.1t^{-.75}g(z_{t-1}),\\quad \\bar x_t=t^{-1}\\sum_{s=1}^{t}z_s"
+  },
+  {
+    "name": "HeavyBall",
+    "order": "first-order",
+    "params": {
+      "lr": 0.1,
+      "beta": 0.9
+    },
+    "formula": "v_t=\\beta v_{t-1}-\\eta g(x_t),\\quad x_{t+1}=x_t+v_t,\\quad v_{-1}=0"
+  },
+  {
+    "name": "Nesterov",
+    "order": "first-order",
+    "params": {
+      "lr": 0.05,
+      "beta": 0.9
+    },
+    "formula": "y_t=x_t+\\beta(x_t-x_{t-1}),\\quad x_{t+1}=y_t-\\eta g(y_t)"
+  },
+  {
+    "name": "Adam",
+    "order": "first-order",
+    "params": {
+      "lr": 0.001,
+      "beta1": 0.9,
+      "beta2": 0.999,
+      "eps": 1e-8
+    },
+    "formula": "m_t=\\beta_1m_{t-1}+(1-\\beta_1)g_t,\\ v_t=\\beta_2v_{t-1}+(1-\\beta_2)g_t^2,\\quad x_{t+1}=x_t-\\eta\\frac{m_t/(1-\\beta_1^t)}{\\sqrt{v_t/(1-\\beta_2^t)}+\\epsilon}"
+  },
+  {
+    "name": "AdamW",
+    "order": "first-order",
+    "params": {
+      "lr": 0.001,
+      "beta1": 0.9,
+      "beta2": 0.999,
+      "eps": 1e-8,
+      "decay": 0.01
+    },
+    "formula": "x_{t+1}=(1-\\eta\\lambda)x_t-\\eta\\frac{m_t/(1-\\beta_1^t)}{\\sqrt{v_t/(1-\\beta_2^t)}+\\epsilon},\\quad m_t,v_t\\text{ use }g_t\\text{ only}"
+  },
+  {
+    "name": "AMSGrad",
+    "order": "first-order",
+    "params": {
+      "lr": 0.001,
+      "beta1": 0.9,
+      "beta2": 0.999,
+      "eps": 1e-8
+    },
+    "formula": "m_t=\\beta_1m_{t-1}+(1-\\beta_1)g_t,\\ v_t=\\beta_2v_{t-1}+(1-\\beta_2)g_t^2,\\quad \\hat v_t=\\max(\\hat v_{t-1},v_t),\\quad x_{t+1}=x_t-\\eta m_t/(\\sqrt{\\hat v_t}+\\epsilon)"
+  },
+  {
+    "name": "SignSGD",
+    "order": "first-order",
+    "params": {
+      "lr": 0.05
+    },
+    "formula": "x_{t+1}=x_t-\\eta\\operatorname{sign}(g_t)"
+  },
+  {
+    "name": "ProxSGD",
+    "order": "first-order",
+    "params": {
+      "lr": 0.1,
+      "lam": 0.01
+    },
+    "formula": "x_{t+1}=\\operatorname{soft}(x_t-\\eta g_t,\\eta\\lambda)"
+  },
+  {
+    "name": "RDA",
+    "order": "first-order",
+    "params": {
+      "lr": 0.1,
+      "lam": 0.01
+    },
+    "formula": "G_t=\\sum_{s=1}^t g_s,\\quad x_t=\\operatorname{soft}(-\\eta G_t/\\sqrt t,\\eta\\lambda\\sqrt t),\\quad x_0=0"
+  },
+  {
+    "name": "SPSA",
+    "order": "zero-order",
+    "params": {
+      "alpha": 0.005,
+      "beta": 0.1
+    },
+    "formula": "\\hat g=\\Delta\\frac{f(x+\\beta\\Delta)-f(x-\\beta\\Delta)}{2\\beta},\\quad\\Delta_i=\\pm1/\\sqrt d,\\quad x^+=x-\\alpha\\hat g"
+  },
+  {
+    "name": "KieferWolfowitz",
+    "order": "zero-order",
+    "params": {
+      "lr": 0.02,
+      "h": 0.0001
+    },
+    "formula": "\\hat g_i=\\frac{f(x+he_i)-f(x-he_i)}{2h},\\quad x^+=x-\\eta\\hat g"
+  },
+  {
+    "name": "GaussianZOSGD",
+    "order": "zero-order",
+    "params": {
+      "lr": 0.005,
+      "h": 0.01,
+      "m": 1
+    },
+    "formula": "\\hat g=\\frac1m\\sum_{j=1}^m\\frac{f(x+hu_j)-f(x-hu_j)}{2h}u_j,\\quad u_j\\sim\\mathcal N(0,I),\\quad x^+=x-\\eta\\hat g"
+  },
+  {
+    "name": "SphericalZOSGD",
+    "order": "zero-order",
+    "params": {
+      "lr": 0.005,
+      "h": 0.01,
+      "m": 1
+    },
+    "formula": "\\hat g=\\frac d m\\sum_{j=1}^m\\frac{f(x+hu_j)-f(x-hu_j)}{2h}u_j,\\quad u_j\\sim\\operatorname{Unif}(S^{d-1}),\\quad x^+=x-\\eta\\hat g"
+  },
+  {
+    "name": "ExponentiatedGradient",
+    "order": "first-order",
+    "params": {
+      "lr": 0.1
+    },
+    "formula": "x_i^+=x_i e^{-\\eta g_i}/\\sum_jx_j e^{-\\eta g_j},\\quad x_i=0\\Rightarrow x_i^+=0"
+  },
+  {
+    "name": "ProjectedGradient",
+    "order": "first-order",
+    "params": {
+      "lr": 0.1
+    },
+    "formula": "x^+=\\Pi_\\Delta(x-\\eta g)"
+  },
+  {
+    "name": "RiemannianSGD",
+    "order": "first-order",
+    "params": {
+      "lr": 0.1
+    },
+    "formula": "\\Pi_X(G)=G-X\\operatorname{sym}(X^\\top G),\\quad X^+=\\operatorname{polar}(X-\\eta\\Pi_X(G))"
+  },
+  {
+    "name": "AdaGrad", "order": "first-order", "params": {"lr": 0.1, "eps": 1e-8},
+    "formula": "s^+=s+g^2,\\quad x^+=x-\\eta g/(\\sqrt{s^+}+\\epsilon)"
+  },
+  {
+    "name": "OnePointSPSA", "order": "zero-order", "params": {"lr": 0.005, "r": 0.1},
+    "formula": "\\hat g_i=f(x+r\\Delta)/(r\\Delta_i),\\quad\\Delta_i=\\pm1,\\quad x^+=x-\\eta\\hat g"
+  },
+  {
+    "name": "ZOSignSGD", "order": "zero-order", "params": {"lr": 0.005, "r": 0.01, "m": 1},
+    "formula": "\\hat g=\\frac{d}{mr}\\sum_j[f(x+ru_j)-f(x)]u_j,\\quad x^+=x-\\eta\\operatorname{sign}(\\hat g)"
+  },
+  {
+    "name": "RandomSearch", "order": "zero-order", "params": {"sigma": 0.1},
+    "formula": "z=x+\\sigma\\xi/\\sqrt d,\\quad x^+=z\\;\\text{if fresh }f(z)<f(x);\\;x\\text{ otherwise}"
+  },
+  {
+    "name": "AcceleratedSPSA", "order": "zero-order", "params": {"h": 0.005, "beta": 0.1, "a": 0.1, "delta": 1.05},
+    "formula": "u=(x+az)/(1+a),\\quad x^+=u-hg,\\quad z^+=(1-a)z+au-(a/\\delta)g"
+  }
+];
 
 const METRICS = [
   ["tracking_error", "Tracking error", "Geometry-aware distance", String.raw`e_t=\|x_t-\theta_t\|_p`],
@@ -215,17 +242,17 @@ const METRICS = [
   ["dynamic_regret", "Dynamic regret", "Cumulative moving regret", String.raw`R_T=\sum_{t=1}^{T}\left[f_t(x_t)-f_t(\theta_t)\right]`],
   ["time_to_recovery", "Time to recovery", "Recovery after jumps", String.raw`\operatorname{TTR}(\tau)=\min\{k\ge0:\|x_{\tau+k}-\theta_{\tau+k}\|_2\le\varepsilon\}`],
   ["drift_adaptation", "Drift adaptation", "Motion alignment score", String.raw`A_t=\frac{\langle\Delta x_t,\Delta\theta_t\rangle}{\|\Delta x_t\|_2\,\|\Delta\theta_t\|_2}`],
-  ["adaptivity", "Adaptivity", "Recovery relative to ideal", String.raw`\operatorname{Adaptivity}=\frac{\operatorname{TTR}_{\mathrm{oracle}}}{\operatorname{TTR}_{\mathrm{algo}}}`],
-  ["query_efficiency", "Query efficiency", "Error per oracle query", String.raw`\operatorname{QE}=\frac{\operatorname{mean}_{\mathrm{tail}}\|x_t-\theta_t\|_2}{Q_T}`],
+  ["adaptivity", "Adaptivity", "Conditional on completed recovery; instant recovery = 1", String.raw`a_j=\min(1,\tau_{\rm oracle}/\operatorname{TTR}_j)`],
+  ["query_efficiency", "Query efficiency", "Queries to accuracy; epsilon = 0.1; lower is better", String.raw`Q_\varepsilon=\inf\{q\ge0:d_{\mathcal X}(x(q),\theta(q))\le\varepsilon\}`],
   ["lyapunov", "Lyapunov", "Stability function Vₙ", String.raw`V_t=\|x_t-\theta_t\|_{\rho+1}^{\rho+1}`],
-  ["asymptotic_bound", "Asymptotic bound", "Tail lim-sup estimate", String.raw`L=\limsup_{t\to\infty}\mathbb E[V_t]`],
+  ["asymptotic_bound", "Asymptotic bound", "Finite-horizon ensemble estimate; not a certified bound", String.raw`\widehat L_{T,\gamma}=\max_{t\in I_\gamma}\frac1N\sum_s V_t^{(s)}`],
 ].map(([id, name, desc, formula]) => ({ id, name, desc, formula }));
 
 const I18N = {
   ru: {
     navOverview:"Главная",navEnvironment:"Среда",navOracle:"Оракул",navOptimizers:"Примеры оптимизаторов",navRunner:"Запуск",navResults:"Результаты",navAnalysis:"Анализ",navGym:"RL: Gymnasium",documentation:"Документация ↗",workspaceReady:"Конфигурация готова",
     controlCenter:"ОБЗОР КОНФИГУРАЦИИ",overviewTitle:"WIND Benchmark",overviewDescription:"Настройка среды, оракула, алгоритма, запуска, метрик и выходных данных.",
-    landscapes:"Ландшафтов",landscapesList:"Quadratic, P-norm, Rosenbrock, Multi-extremal, Robust, Simplex, Stiefel и Grassmann.",driftModels:"Моделей дрейфа",driftList:"Stationary, linear, random walk, cyclic, jump, adaptive, sparse и Stiefel.",oracleModes:"Режимов оракула",oracleList:"First-order, zero-order, hybrid, scheduled и offline replay.",optimizerCatalog:"Примеров оптимизаторов",optimizerList:"12 first-order и 13 zero-order реализаций.",metrics:"Метрик",metricsList:"Tracking error, regret, Lyapunov, adaptivity и query efficiency.",geometries:"Геометрии действий",geometryList:"Euclidean, Simplex, Stiefel и Grassmann.",
+    landscapes:"Ландшафтов",landscapesList:"Quadratic, P-norm, Rosenbrock, Multi-extremal, Robust, Simplex, Stiefel и Grassmann.",driftModels:"Моделей дрейфа",driftList:"Stationary, linear, random walk, cyclic, jump, adaptive, sparse и Stiefel.",oracleModes:"Режимов оракула",oracleList:"First-order, zero-order, hybrid, scheduled и offline replay.",optimizerCatalog:"Примеров оптимизаторов",optimizerList:"14 first-order и 8 zero-order реализации.",metrics:"Метрик",metricsList:"Tracking error, regret, Lyapunov, adaptivity и query efficiency.",geometries:"Геометрии действий",geometryList:"Euclidean, Simplex, Stiefel и Grassmann.",
     benchmarkPipeline:"Конвейер бенчмарка",configure:"Настроить",environment:"Среда",oracle:"Оракул",optimizer:"Пример оптимизатора",runner:"Runner",result:"Результат",
     environmentTitle:"Динамическая среда",environmentDescription:"Ландшафт задаёт геометрию задачи, drift — движение скрытого оптимума θₜ.",landscape:"Ландшафт",dimension:"Размерность",drift:"Дрейф",bounds:"Границы x",
     oracleTitle:"Оракул",oracleDescription:"Режим и состав информации, доступной алгоритму на каждом шаге.",oracleMode:"Режим оракула",blindValue:"Скрывать значение функции",schedule:"Расписание",recordedTrajectory:"Файл с траекторией θ",noiseChannels:"Каналы шума",valueNoise:"Шум значения",gradientNoise:"Шум градиента",
@@ -236,7 +263,7 @@ const I18N = {
   en: {
     navOverview:"Home",navEnvironment:"Environment",navOracle:"Oracle",navOptimizers:"Optimizer examples",navRunner:"Run",navResults:"Results",navAnalysis:"Analysis",navGym:"RL: Gymnasium",documentation:"Documentation ↗",workspaceReady:"Configuration ready",
     controlCenter:"CONFIGURATION OVERVIEW",overviewTitle:"WIND Benchmark",overviewDescription:"Environment, oracle, algorithm, runner, metrics and output configuration.",
-    landscapes:"Landscapes",landscapesList:"Quadratic, P-norm, Rosenbrock, Multi-extremal, Robust, Simplex, Stiefel and Grassmann.",driftModels:"Drift models",driftList:"Stationary, linear, random walk, cyclic, jump, adaptive, sparse and Stiefel.",oracleModes:"Oracle modes",oracleList:"First-order, zero-order, hybrid, scheduled and offline replay.",optimizerCatalog:"Optimizer examples",optimizerList:"12 first-order and 13 zero-order implementations.",metrics:"Metrics",metricsList:"Tracking error, regret, Lyapunov, adaptivity and query efficiency.",geometries:"Action geometries",geometryList:"Euclidean, Simplex, Stiefel and Grassmann.",
+    landscapes:"Landscapes",landscapesList:"Quadratic, P-norm, Rosenbrock, Multi-extremal, Robust, Simplex, Stiefel and Grassmann.",driftModels:"Drift models",driftList:"Stationary, linear, random walk, cyclic, jump, adaptive, sparse and Stiefel.",oracleModes:"Oracle modes",oracleList:"First-order, zero-order, hybrid, scheduled and offline replay.",optimizerCatalog:"Optimizer examples",optimizerList:"14 first-order and 8 zero-order implementations.",metrics:"Metrics",metricsList:"Tracking error, regret, Lyapunov, adaptivity and query efficiency.",geometries:"Action geometries",geometryList:"Euclidean, Simplex, Stiefel and Grassmann.",
     benchmarkPipeline:"Benchmark pipeline",configure:"Configure",environment:"Environment",oracle:"Oracle",optimizer:"Optimizer example",runner:"Runner",result:"Result",
     environmentTitle:"Dynamic environment",environmentDescription:"The landscape defines task geometry; drift moves the hidden optimum θₜ.",landscape:"Landscape",dimension:"Dimension",drift:"Drift",bounds:"x bounds",
     oracleTitle:"Oracle",oracleDescription:"Feedback mode and information available to the algorithm at each step.",oracleMode:"Oracle mode",blindValue:"Hide function value",schedule:"Schedule",recordedTrajectory:"Recorded θ file",noiseChannels:"Noise channels",valueNoise:"Value noise",gradientNoise:"Gradient noise",
@@ -247,7 +274,7 @@ const I18N = {
   zh: {
     navOverview:"首页",navEnvironment:"环境",navOracle:"预言机",navOptimizers:"优化器示例",navRunner:"运行",navResults:"结果",navAnalysis:"分析",navGym:"RL: Gymnasium",documentation:"文档 ↗",workspaceReady:"配置就绪",
     controlCenter:"配置概览",overviewTitle:"WIND Benchmark",overviewDescription:"环境、预言机、算法、运行参数、指标和输出配置。",
-    landscapes:"损失景观",landscapesList:"Quadratic、P-norm、Rosenbrock、Multi-extremal、Robust、Simplex、Stiefel 和 Grassmann。",driftModels:"漂移模型",driftList:"Stationary、linear、random walk、cyclic、jump、adaptive、sparse 和 Stiefel。",oracleModes:"预言机模式",oracleList:"一阶、零阶、混合、调度和离线回放。",optimizerCatalog:"优化器示例",optimizerList:"12 个一阶和 13 个零阶实现。",metrics:"指标",metricsList:"跟踪误差、regret、Lyapunov、自适应性和查询效率。",geometries:"动作几何",geometryList:"Euclidean、Simplex、Stiefel 和 Grassmann。",
+    landscapes:"损失景观",landscapesList:"Quadratic、P-norm、Rosenbrock、Multi-extremal、Robust、Simplex、Stiefel 和 Grassmann。",driftModels:"漂移模型",driftList:"Stationary、linear、random walk、cyclic、jump、adaptive、sparse 和 Stiefel。",oracleModes:"预言机模式",oracleList:"一阶、零阶、混合、调度和离线回放。",optimizerCatalog:"优化器示例",optimizerList:"14 个一阶和 8 个零阶实现。",metrics:"指标",metricsList:"跟踪误差、regret、Lyapunov、自适应性和查询效率。",geometries:"动作几何",geometryList:"Euclidean、Simplex、Stiefel 和 Grassmann。",
     benchmarkPipeline:"基准流程",configure:"配置",environment:"环境",oracle:"预言机",optimizer:"优化器示例",runner:"Runner",result:"结果",
     environmentTitle:"动态环境",environmentDescription:"景观定义任务几何，漂移控制隐藏最优点 θₜ 的运动。",landscape:"景观",dimension:"维度",drift:"漂移",bounds:"x 边界",
     oracleTitle:"预言机",oracleDescription:"每一步提供给算法的反馈模式和信息。",oracleMode:"预言机模式",blindValue:"隐藏函数值",schedule:"调度",recordedTrajectory:"记录的 θ 文件",noiseChannels:"噪声通道",valueNoise:"数值噪声",gradientNoise:"梯度噪声",
@@ -340,13 +367,13 @@ function renderGuides(openingPage = null) {
   if (!locale) return;
   const sourceByPage = {
     overview: "README.md",
-    environment: "src/core.py",
-    oracle: "src/oracle.py",
-    optimizers: "src/experiment.py",
-    runner: "src/benchmark.py",
+    environment: "src/core/environment.py",
+    oracle: "src/core/oracle.py",
+    optimizers: "src/experiments/configurable.py",
+    runner: "src/core/runner.py",
     results: "README.md#reproducibility",
-    analysis: "src/visualization.py",
-    gym: "src/gym_env.py",
+    analysis: "src/reporting/interactive.py",
+    gym: "src/integrations/gym_env.py",
   };
   document.querySelectorAll("[data-guide-page]").forEach((container) => {
     const page = container.dataset.guidePage;
@@ -481,7 +508,6 @@ function selectedOptimizerConfigs() {
   return OPTIMIZERS.filter((optimizer) => selectedOptimizerNames.has(optimizer.name))
     .map((optimizer) => {
       const params = { ...optimizerParamsByName[optimizer.name] };
-      if (optimizer.name === "EliteCovarianceSearch" && !(params.population_size > 0)) delete params.population_size;
       return { name: optimizer.name, params };
     });
 }
@@ -621,6 +647,7 @@ function workbenchConfig() {
   if (oracleType === "scheduled") oracle.schedule = scheduleConfig();
   if (oracleType === "offline") oracle.recorded_path = els.offlinePath.value.trim();
   return {
+    schema_version: 3,
     environment,
     oracle,
     optimizers: selectedOptimizerConfigs(),
@@ -649,7 +676,7 @@ function workbenchConfig() {
       max_step: Number(els.gymMaxStep.value),
       x_bounds: [Number(els.gymBoundLow.value), Number(els.gymBoundHigh.value)],
       x0: gymInitialX,
-      terminate_on_diverge: els.gymDiverge.value ? Number(els.gymDiverge.value) : null,
+      terminate_on_diverge: null,
     },
   };
 }
@@ -733,11 +760,11 @@ function updateGymCode(config) {
   const transition = gym.action_mode === "absolute"
     ? String.raw`x_{t+1}=\Pi_{\mathcal G}(a_t)`
     : String.raw`x_{t+1}=\Pi_{\mathcal G}\!\left(x_t+\operatorname{clip}(a_t,-\Delta_{\max},\Delta_{\max})\right)`;
-  const reward = gym.reward === "neg_error"
-    ? String.raw`r_t=-d_{\mathcal G}(x_t,\theta_t)`
-    : String.raw`r_t=-\left[f_t(x_t)-f_t(\theta_t)\right]`;
+  const reward = gym.reward === "zero"
+    ? String.raw`r_t=0`
+    : String.raw`r_t=-\widetilde f_t(x_t)`;
   renderMathSlot(els.gymFormula, `${transition}\\qquad ${reward}`);
-  els.gymCode.textContent = `import numpy as np\n\nfrom wind_benchmark import make_environment\nfrom wind_benchmark.oracle import ${oracleType === "zero-order" ? "ZeroOrderOracle" : "FirstOrderOracle"}\nfrom wind_benchmark.gym_env import WindGymEnv\n\nenvironment = make_environment(environment_config, seed=42)\noracle = ${oracleType === "zero-order" ? "ZeroOrderOracle" : "FirstOrderOracle"}(environment)\nenv = WindGymEnv(\n    environment,\n    oracle=oracle,\n    T=${gym.horizon},\n    action_mode="${gym.action_mode}",\n    reward="${gym.reward}",\n    geometry="${gym.geometry}",\n    x_bounds=(${gym.x_bounds[0]}, ${gym.x_bounds[1]}),\n    max_step=${gym.max_step},\n    x0=${x0},\n    terminate_on_diverge=${diverge},\n)`;
+  els.gymCode.textContent = `import numpy as np\n\nfrom wind_benchmark import make_environment\nfrom wind_benchmark.core.oracle import ${oracleType === "zero-order" ? "ZeroOrderOracle" : "FirstOrderOracle"}\nfrom wind_benchmark.integrations.gym_env import WindGymEnv\n\nenvironment = make_environment(environment_config, seed=42)\noracle = ${oracleType === "zero-order" ? "ZeroOrderOracle" : "FirstOrderOracle"}(environment${oracleType !== "zero-order" && gym.reward === "neg_value" ? ", blind_value=False" : ""})\nenv = WindGymEnv(\n    environment,\n    oracle=oracle,\n    T=${gym.horizon},\n    action_mode="${gym.action_mode}",\n    reward="${gym.reward}",\n    geometry="${gym.geometry}",\n    x_bounds=(${gym.x_bounds[0]}, ${gym.x_bounds[1]}),\n    max_step=${gym.max_step},\n    x0=${x0},\n    terminate_on_diverge=${diverge},\n)`;
 }
 
 function showToast(message) {
