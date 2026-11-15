@@ -10,6 +10,7 @@ import random
 import signal
 import subprocess
 import sys
+import sysconfig
 import time
 
 import numpy as np
@@ -101,7 +102,9 @@ def test_cli_spawn_bootstrap(entry, tmp_path):
     else:
         command = [
             str(
-                Path(sys.executable).parent
+                # Base Windows installs keep console scripts in Scripts/,
+                # while python.exe lives one directory above it.
+                Path(sysconfig.get_path("scripts"))
                 / ("wind-canonical.exe" if os.name == "nt" else "wind-canonical")
             )
         ]
@@ -129,6 +132,14 @@ def test_cli_spawn_bootstrap(entry, tmp_path):
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert read_status(output)["status"] == "complete"
+
+
+def test_cli_console_does_not_assume_python_and_scripts_share_directory(
+    monkeypatch, tmp_path
+):
+    # Reproduce the installation-layout distinction even inside a local venv.
+    monkeypatch.setattr(sys, "executable", str(tmp_path / "base-python" / "python.exe"))
+    test_cli_spawn_bootstrap("console", tmp_path)
 
 
 def test_series_rss_is_peak_of_concurrent_sums(monkeypatch):
