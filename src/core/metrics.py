@@ -1,0 +1,1034 @@
+"""Versioned, evaluator-only metrics with explicit aggregation contracts.
+
+metrics_v2: raw regret is cumulative, recovery is event based, and an asymptotic
+bound is an ensemble finite-horizon estimate, never an individual running peak.
+"""
+
+from abc import ABC, abstractmethod
+from copy import deepcopy
+import hashlib
+import json
+from typing import Any, Dict, List, Optional, Tuple, Union
+import numpy as np
+from wind_benchmark.core.environment import DynamicEnvironment, Landscape
+from wind_benchmark.core.oracle import Observation, EvaluationRecord
+
+METRICS_PROTOCOL = "metrics_v2"
+
+
+def validate_tail(fraction):
+    if not np.isfinite(fraction) or not 0 < fraction <= 1:
+        raise ValueError("tail_fraction must be finite and in (0, 1]")
+    return float(fraction)
+
+
+def _positive(value, name, allow_zero=False):
+    if not np.isfinite(value) or (value < 0 if allow_zero else value <= 0):
+        raise ValueError(
+            f"{name} must be finite and {'nonnegative' if allow_zero else 'positive'}"
+        )
+    return float(value)
+
+
+def _rho_label(rho):
+    rounded = f"{rho:.2f}"
+    return rounded if float(rounded) == rho else repr(float(rho))
+
+
+def _plain(value):
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, dict):
+        return {k: _plain(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_plain(v) for v in value]
+    return value
+
+
+def task_distance(x, theta, environment=None):
+    """Declared task distance; no hidden projection of invalid Grassmann frames."""
+    from wind_benchmark.core.environment import GrassmannLandscape
+    from wind_benchmark.core.geometry import principal_angle_distance, validate_frame
+
+    landscape = getattr(environment, "landscape", None)
+    if isinstance(landscape, GrassmannLandscape):
+        X, Y = (np.asarray(v).reshape(landscape.d, landscape.r) for v in (x, theta))
+        validate_frame(X)
+        validate_frame(Y)
+        return principal_angle_distance(X, Y)
+    return float(np.linalg.norm(np.asarray(x) - np.asarray(theta)))
+
+
+class Metric(ABC):
+    """A stepwise input and a declared scalar aggregation; undefined is not zero."""
+
+    scope = "tail"
+    formula = ""
+    units = "task-dependent"
+
+    def __init__(self, name, direction="minimize", rho=None, parameters=None):
+        if direction not in ("minimize", "maximize"):
+            raise ValueError("direction must be minimize or maximize")
+        if rho is not None and (not np.isfinite(rho) or not 0 < rho <= 1):
+            raise ValueError("rho must be finite and in (0, 1]")
+        rho = None if rho is None else float(rho)
+        self.name, self.direction, self.rho = name, direction, rho
+        self.parameters = _plain(parameters or {})
+        identity = json.dumps(
+            {
+                "class": type(self).__name__,
+                "parameters": self.parameters,
+                "rho": rho,
+                "protocol": METRICS_PROTOCOL,
+            },
+            sort_keys=True,
+            allow_nan=False,
+        )
+        self.metric_id = (
+            type(self).__name__ + ":v2:" + hashlib.sha256(identity.encode()).hexdigest()
+        )
+        self._history = []
+        self._current_value = None
+
+    @abstractmethod
+    def update(self, t, x, theta, observation, environment):
+        pass
+
+    def definition(self):
+        return {
+            "id": self.metric_id,
+            "name": self.name,
+            "class": type(self).__name__,
+            "protocol": METRICS_PROTOCOL,
+            "parameters": deepcopy(self.parameters),
+            "rho": self.rho,
+            "formula": self.formula,
+            "scope": self.scope,
+            "direction": self.direction,
+            "units": self.units,
+            "geometry": (
+                "stiefel"
+                if type(self).__name__
+                in ("StiefelFrameMetric", "StiefelGeodesicMetric")
+                else (
+                    "grassmann"
+                    if isinstance(self, GrassmannPrincipalAngleMetric)
+                    else (
+                        "vector"
+                        if isinstance(
+                            self,
+                            (
+                                TrackingErrorMetric,
+                                LyapunovMetric,
+                                MaxCoordinateErrorMetric,
+                                DriftAdaptationMetric,
+                            ),
+                        )
+                        else "task-aligned"
+                    )
+                )
+            ),
+            "temporal_aggregation": (
+                self.parameters.get("aggregation", "mean")
+                if self.scope == "tail"
+                else "entire_horizon" if self.scope == "horizon" else self.scope
+            ),
+            "between_run_aggregation": (
+                "max_tail_of_ensemble_mean"
+                if self.scope == "ensemble"
+                else (
+                    "restricted_mean_and_reach_fraction"
+                    if isinstance(self, QueryEfficiencyMetric)
+                    else (
+                        "conditional_on_completed_recovery"
+                        if isinstance(self, AdaptivityMetric)
+                        else "mean_with_valid_and_undefined_counts"
+                    )
+                )
+            ),
+            "undefined": "null with status; never zero-filled",
+        }
+
+    def selected_history(self, tail_fraction):
+        fraction = validate_tail(tail_fraction)
+        start = int(len(self._history) * (1 - fraction)) if self.scope == "tail" else 0
+        return np.asarray(self._history[start:], dtype=float)
+
+    def get_result(self, tail_fraction=0.2):
+        data = self.selected_history(tail_fraction)
+        if not len(data):
+            return float("nan")
+        return self._aggregate(data.tolist())
+
+    def status(self, tail_fraction=0.2):
+        data = self.selected_history(tail_fraction)
+        value = self.get_result(tail_fraction)
+        return {
+            "state": "ok" if np.isfinite(value) else "not_estimable",
+            "n_total": len(data),
+            "n_valid": int(np.isfinite(data).sum()),
+        }
+
+    def _aggregate(self, history):
+        return float(np.mean(history))
+
+    def get_history(self):
+        return self._history.copy()
+
+    def reset(self):
+        self._history = []
+        self._current_value = None
+
+    def _record(self, value):
+        self._current_value = float(value)
+        self._history.append(float(value))
+
+
+class TrackingErrorMetric(Metric):
+    """Lp error, or sqrt(e.T A e) for SPD A; optional per-coordinate scaling."""
+
+    formula = "norm(x-theta,p); Mahalanobis sqrt((x-theta)^T A (x-theta))"
+    units = "distance"
+
+    def __init__(self, norm="l2", matrix_A=None, normalize_by_dim=False):
+        p = {"l1": 1.0, "l2": 2.0, "linf": np.inf, "mahalanobis": 2.0}.get(norm, norm)
+        if not isinstance(p, (int, float)) or np.isnan(p) or p < 1:
+            raise ValueError("norm must be l1, l2, linf, mahalanobis or p >= 1")
+        self.norm, self.p = norm, float(p)
+        self._configured_A = (
+            None if matrix_A is None else np.array(matrix_A, dtype=float, copy=True)
+        )
+        self.A = None if self._configured_A is None else self._configured_A.copy()
+        if self.A is not None:
+            self._validate_A(self.A)
+        self.normalize, self._dim = bool(normalize_by_dim), None
+        name = f"error_{norm}" if isinstance(norm, str) else f"error_p{norm}"
+        if self.normalize:
+            name += "_dim_normalized"
+        if self.A is not None:
+            name += "_A" + hashlib.sha256(self.A.tobytes()).hexdigest()[:16]
+        super().__init__(
+            name,
+            parameters={
+                "norm": norm if isinstance(norm, str) else str(norm),
+                "matrix_A": self._configured_A,
+                "normalize_by_dim": self.normalize,
+            },
+        )
+
+    @staticmethod
+    def _validate_A(A):
+        if A.ndim != 2 or A.shape[0] != A.shape[1] or not np.isfinite(A).all():
+            raise ValueError("Mahalanobis A must be a finite square SPD matrix")
+        if not np.allclose(A, A.T, atol=1e-12, rtol=1e-12):
+            raise ValueError("Mahalanobis A must be symmetric")
+        try:
+            np.linalg.cholesky(A)
+        except np.linalg.LinAlgError as exc:
+            raise ValueError("Mahalanobis A must be positive definite") from exc
+
+    def update(self, t, x, theta, observation, environment):
+        diff = np.asarray(x) - np.asarray(theta)
+        if self.norm == "mahalanobis":
+            if self.A is None:
+                A = getattr(getattr(environment, "landscape", None), "A", None)
+                if A is None:
+                    raise ValueError(
+                        "Mahalanobis tracking requires explicit or landscape A"
+                    )
+                self.A = np.array(A, dtype=float, copy=True)
+                self._validate_A(self.A)
+            if self.A.shape != (diff.size, diff.size):
+                raise ValueError("Mahalanobis matrix dimension does not match decision")
+            error = float(np.sqrt(diff @ self.A @ diff))
+        else:
+            error = float(np.linalg.norm(diff, ord=self.p))
+        self._dim = diff.size
+        if self.normalize and np.isfinite(self.p):
+            error /= self._dim ** (1 / self.p)
+        self._record(error)
+
+    def reset(self):
+        super().reset()
+        self.A = None if self._configured_A is None else self._configured_A.copy()
+        self._dim = None
+
+
+class MaxCoordinateErrorMetric(Metric):
+    """max_i |error_i| at each step; tail mean by default, explicit max optional."""
+
+    formula = "max_i abs(x_i-theta_i)"
+    units = "distance"
+
+    def __init__(self, aggregation="mean"):
+        if aggregation not in ("mean", "max"):
+            raise ValueError("aggregation must be mean or max")
+        self.aggregation = aggregation
+        super().__init__(
+            "max_coord_error" + ("_peak" if aggregation == "max" else ""),
+            parameters={"aggregation": aggregation},
+        )
+
+    def update(self, t, x, theta, observation, environment):
+        self._record(np.max(np.abs(x - theta)))
+
+    def _aggregate(self, history):
+        return float(np.max(history) if self.aggregation == "max" else np.mean(history))
+
+
+class StiefelFrameMetric(Metric):
+    """Extrinsic Frobenius distance between oriented frames; not a geodesic."""
+
+    formula = "norm(X-Theta,F)"
+    units = "frame distance"
+
+    def __init__(self, d, r):
+        if (
+            not isinstance(d, (int, np.integer))
+            or not isinstance(r, (int, np.integer))
+            or not 1 <= r <= d
+        ):
+            raise ValueError("Require 1 <= r <= d")
+        self.d, self.r = d, r
+        super().__init__("stiefel_frame_frobenius", parameters={"d": d, "r": r})
+
+    def update(self, t, x, theta, observation, environment):
+        self._record(
+            np.linalg.norm(
+                np.asarray(x).reshape(self.d, self.r)
+                - np.asarray(theta).reshape(self.d, self.r),
+                ord="fro",
+            )
+        )
+
+
+class GrassmannPrincipalAngleMetric(StiefelFrameMetric):
+    """Grassmann geodesic: L2 norm of principal angles of orthonormal frames."""
+
+    formula = "norm(arccos(svd(X.T@Theta)),2)"
+    units = "radians"
+
+    def __init__(self, d, r):
+        super().__init__(d, r)
+        self.name = "grassmann_principal_angle"
+
+    def update(self, t, x, theta, observation, environment):
+        from wind_benchmark.core.geometry import (
+            principal_angle_distance,
+            validate_frame,
+        )
+
+        X, Y = (np.asarray(v).reshape(self.d, self.r) for v in (x, theta))
+        validate_frame(X)
+        validate_frame(Y)
+        self._record(principal_angle_distance(X, Y))
+
+
+class StiefelGeodesicMetric(StiefelFrameMetric):
+    """Numerical canonical Stiefel distance; no Grassmann/Frobenius fallback."""
+
+    formula = "norm(Log_X(Theta),canonical); numerical estimate, not globally certified"
+    units = "canonical geodesic length"
+
+    def __init__(self, d, r, tolerance=1e-8, max_iterations=200):
+        super().__init__(d, r)
+        self.tolerance = _positive(tolerance, "tolerance")
+        if not isinstance(max_iterations, int) or max_iterations < 1:
+            raise ValueError("max_iterations must be positive")
+        self.max_iterations = max_iterations
+        Metric.__init__(
+            self,
+            "stiefel_geodesic",
+            parameters={
+                "d": d,
+                "r": r,
+                "tolerance": tolerance,
+                "max_iterations": max_iterations,
+                "riemannian_metric": "canonical",
+            },
+        )
+        self.diagnostics = []
+
+    def update(self, t, x, theta, observation, environment):
+        from wind_benchmark.core.geometry import canonical_stiefel_distance
+
+        value, diagnostic = canonical_stiefel_distance(
+            np.asarray(x).reshape(self.d, self.r),
+            np.asarray(theta).reshape(self.d, self.r),
+            tolerance=self.tolerance,
+            max_iterations=self.max_iterations,
+        )
+        self.diagnostics.append(diagnostic)
+        self._record(value)
+
+    def status(self, tail_fraction=0.2):
+        status = super().status(tail_fraction)
+        start = int(len(self.diagnostics) * (1 - validate_tail(tail_fraction)))
+        status.update(
+            numerical_estimate=True,
+            globally_certified=False,
+            diagnostics=self.diagnostics[start:],
+        )
+        return status
+
+    def reset(self):
+        super().reset()
+        self.diagnostics = []
+
+
+class LyapunovMetric(Metric):
+    """V_t = ||x-theta||_(rho+1)^(rho+1); tail mean, 0 < rho <= 1."""
+
+    formula = "norm(x-theta,rho+1) ** (rho+1)"
+    units = "distance ** (rho+1)"
+
+    def __init__(self, rho=1.0):
+        super().__init__(f"lyapunov_rho{_rho_label(rho)}", rho=rho)
+        self.p_norm = rho + 1
+
+    def update(self, t, x, theta, observation, environment):
+        self._record(np.linalg.norm(x - theta, ord=self.p_norm) ** self.p_norm)
+
+
+class NormalizedLyapunovMetric(LyapunovMetric):
+    """V_t / A^(rho+1); normalization does not guarantee drift invariance."""
+
+    formula = "norm(x-theta,rho+1) ** (rho+1) / A ** (rho+1)"
+    units = "dimensionless"
+
+    def __init__(self, rho=1.0, drift_magnitude_A=0.1):
+        self.A = _positive(drift_magnitude_A, "drift_magnitude_A")
+        Metric.__init__(
+            self,
+            f"norm_lyapunov_rho{_rho_label(rho)}_A{repr(self.A)}",
+            rho=rho,
+            parameters={"drift_magnitude_A": self.A},
+        )
+        self.p_norm = rho + 1
+        self.normalization_factor = self.A**self.p_norm
+
+    def update(self, t, x, theta, observation, environment):
+        self._record(
+            np.linalg.norm(x - theta, ord=self.p_norm) ** self.p_norm
+            / self.normalization_factor
+        )
+
+
+class AsymptoticBoundMetric(LyapunovMetric):
+    """Inputs V_t for max_tail(mean_seeds(V_t)); no individual bound is reported."""
+
+    scope = "ensemble"
+    formula = "max_{t in tail} mean_{independent seeds}(V_t); finite-horizon estimate"
+
+    def __init__(self, rho=1.0):
+        super().__init__(rho)
+        self.name = f"asymptotic_bound_rho{_rho_label(rho)}"
+
+    def _aggregate(self, history):
+        return float("nan")
+
+    def status(self, tail_fraction=0.2):
+        validate_tail(tail_fraction)
+        return {
+            "state": "requires_ensemble",
+            "n_total": len(self._history),
+            "n_valid": int(np.isfinite(self._history).sum()),
+            "history_quantity": "V_t, not an individual bound",
+        }
+
+
+class InstantaneousLossMetric(Metric):
+    """Clean L(x_t;theta_t); tail mean for the scalar."""
+
+    formula = "L(x_t;theta_t)"
+    units = "loss"
+
+    def __init__(self):
+        super().__init__("instant_loss")
+
+    def update(self, t, x, theta, observation, environment):
+        self._record(
+            observation.clean_value
+            if isinstance(observation, EvaluationRecord)
+            else environment.landscape.loss(x, theta)
+        )
+
+
+class DynamicRegretMetric(Metric):
+    """Raw cumulative regret over the full horizon; path normalization is additional."""
+
+    scope = "horizon"
+    formula = "sum_t (L(x_t;theta_t)-L(theta_t;theta_t))"
+    units = "cumulative loss"
+
+    def __init__(self, normalize_by_path=False):
+        super().__init__(
+            "dynamic_regret", parameters={"normalize_by_path": bool(normalize_by_path)}
+        )
+        self.normalize_by_path = bool(normalize_by_path)
+        self.reset()
+
+    def update(self, t, x, theta, observation, environment):
+        if isinstance(observation, EvaluationRecord):
+            regret = observation.clean_value - observation.optimum_value
+        else:
+            regret = environment.landscape.loss(x, theta) - environment.landscape.loss(
+                theta, theta
+            )
+        self._cumulative_regret += regret
+        if self._prev_theta is not None:
+            self._path_variation += float(np.linalg.norm(theta - self._prev_theta))
+        self._prev_theta = theta.copy()
+        self._increments.append(float(regret))
+        self._path_history.append(self._path_variation)
+        self._record(self._cumulative_regret)
+
+    def _aggregate(self, history):
+        return float(history[-1])
+
+    def reset(self):
+        super().reset()
+        self._path_variation = 0.0
+        self._prev_theta = None
+        self._cumulative_regret = 0.0
+        self._increments, self._path_history = [], []
+
+
+class RecoveryEvents:
+    """Event journal shared by TTR and adaptivity. New jumps close old windows first."""
+
+    def __init__(self, jump_threshold, epsilon):
+        self.jump_threshold = _positive(
+            jump_threshold, "jump_threshold", allow_zero=True
+        )
+        self.epsilon = _positive(epsilon, "epsilon", allow_zero=True)
+        self.reset()
+
+    def reset(self):
+        self.previous = None
+        self.closed = []
+        self.active = None
+        self.last_t = None
+
+    def update(self, t, theta, error, epsilon=None):
+        if self.last_t is not None and t != self.last_t + 1:
+            raise ValueError("Recovery metrics require consecutive time steps")
+        jump = (
+            self.previous is not None
+            and np.linalg.norm(theta - self.previous) > self.jump_threshold
+        )
+        if jump:
+            if self.active is not None:
+                self.closed.append(self._finish(t))
+            threshold = (
+                self.epsilon
+                if epsilon is None
+                else _positive(epsilon, "epsilon", allow_zero=True)
+            )
+            self.active = {
+                "jump_time": int(t),
+                "time_to_recovery": None,
+                "epsilon": threshold,
+            }
+        if (
+            self.active is not None
+            and self.active["time_to_recovery"] is None
+            and error <= self.active["epsilon"]
+        ):
+            self.active["time_to_recovery"] = int(t - self.active["jump_time"])
+        self.previous = theta.copy()
+        self.last_t = int(t)
+
+    def _finish(self, end):
+        event = dict(self.active)
+        window = int(end - event["jump_time"])
+        recovered = event["time_to_recovery"] is not None
+        event.update(
+            window=window,
+            recovered=recovered,
+            censored=not recovered,
+            restricted_time=event["time_to_recovery"] if recovered else window,
+        )
+        return event
+
+    def events(self):
+        result = deepcopy(self.closed)
+        if self.active is not None:
+            result.append(self._finish(self.last_t + 1))
+        return result
+
+
+class TimeToRecoveryMetric(Metric):
+    """Mean capped event TTR; first hit k=0 included; unfinished events are censored."""
+
+    scope = "events"
+    formula = "mean_j min(TTR_j,c_j); recovery_fraction reported separately"
+    units = "environment steps"
+
+    def __init__(self, jump_threshold=1.0, epsilon=0.1):
+        self.jump_threshold, self.epsilon = jump_threshold, epsilon
+        self.journal = RecoveryEvents(jump_threshold, epsilon)
+        super().__init__(
+            "ttr",
+            parameters={
+                "jump_threshold": jump_threshold,
+                "epsilon": epsilon,
+                "aggregate": "mean_capped",
+                "confirmation": 1,
+            },
+        )
+
+    def update(self, t, x, theta, observation, environment):
+        self.journal.update(t, theta, task_distance(x, theta, environment))
+        events = self.journal.events()
+        self._record(
+            np.mean([e["restricted_time"] for e in events]) if events else np.nan
+        )
+
+    def _aggregate(self, history):
+        events = self.journal.events()
+        return (
+            float(np.mean([e["restricted_time"] for e in events]))
+            if events
+            else float("nan")
+        )
+
+    def status(self, tail_fraction=0.2):
+        validate_tail(tail_fraction)
+        events = self.journal.events()
+        recovered = sum(e["recovered"] for e in events)
+        return {
+            "state": "ok" if events else "no_events",
+            "n_total": len(events),
+            "n_valid": len(events),
+            "n_recovered": recovered,
+            "n_censored": len(events) - recovered,
+            "recovery_fraction": recovered / len(events) if events else None,
+            "events": events,
+        }
+
+    def reset(self):
+        super().reset()
+        self.journal.reset()
+
+
+class DriftAdaptationMetric(Metric):
+    """Mean cosine of nonzero optimizer/target displacements; undefined is excluded."""
+
+    formula = "mean_valid cosine(x_t-x_(t-1),theta_t-theta_(t-1))"
+    units = "dimensionless"
+
+    def __init__(self):
+        super().__init__("drift_adaptation", direction="maximize")
+        self.reset()
+
+    def update(self, t, x, theta, observation, environment):
+        cosine = np.nan
+        if self._prev_x is not None:
+            dx, dt = x - self._prev_x, theta - self._prev_theta
+            denominator = np.linalg.norm(dx) * np.linalg.norm(dt)
+            if denominator > 0:
+                cosine = np.clip(np.dot(dx, dt) / denominator, -1, 1)
+        self._record(cosine)
+        self._prev_x, self._prev_theta = x.copy(), theta.copy()
+
+    def _aggregate(self, history):
+        valid = np.asarray(history)[np.isfinite(history)]
+        return float(valid.mean()) if len(valid) else float("nan")
+
+    def reset(self):
+        super().reset()
+        self._prev_x = self._prev_theta = None
+
+
+class AdaptivityMetric(TimeToRecoveryMetric):
+    """Conditional mean min(1,oracle_ttr/TTR); instant recovery=1; censor counts explicit."""
+
+    formula = "mean_recovered min(1,oracle_ttr/TTR); TTR=0 maps to 1"
+    units = "dimensionless"
+
+    def __init__(self, jump_threshold=1.0, epsilon=0.1, oracle_ttr=1.0):
+        self.jump_threshold, self.epsilon = jump_threshold, epsilon
+        self.oracle_ttr = _positive(oracle_ttr, "oracle_ttr")
+        self.journal = RecoveryEvents(jump_threshold, epsilon)
+        Metric.__init__(
+            self,
+            "adaptivity",
+            direction="maximize",
+            parameters={
+                "jump_threshold": jump_threshold,
+                "epsilon": epsilon,
+                "oracle_ttr": oracle_ttr,
+                "aggregate": "mean_recovered_only",
+            },
+        )
+
+    def _aggregate(self, history):
+        values = [
+            (
+                1.0
+                if e["time_to_recovery"] == 0
+                else min(1.0, self.oracle_ttr / e["time_to_recovery"])
+            )
+            for e in self.journal.events()
+            if e["recovered"]
+        ]
+        return float(np.mean(values)) if values else float("nan")
+
+    def update(self, t, x, theta, observation, environment):
+        self.journal.update(t, theta, task_distance(x, theta, environment))
+        self._record(self._aggregate([]))
+
+    def status(self, tail_fraction=0.2):
+        result = super().status(tail_fraction)
+        result["state"] = (
+            "conditional_on_recovery"
+            if result["n_recovered"]
+            else ("no_events" if not result["n_total"] else "no_completed_recoveries")
+        )
+        result["n_valid"] = result["n_recovered"]
+        return result
+
+
+class QueryEfficiencyMetric(Metric):
+    """First query index reaching task distance epsilon; censored if never reached."""
+
+    scope = "horizon"
+    formula = "inf {q>=0: task_distance(x(q),theta(q))<=epsilon}"
+    units = "oracle queries"
+
+    def __init__(self, epsilon=0.1, decision_stream="committed"):
+        self.epsilon = _positive(epsilon, "epsilon", allow_zero=True)
+        if decision_stream not in ("committed", "queried", "recommended"):
+            raise ValueError("Unknown decision_stream")
+        self.decision_stream = decision_stream
+        super().__init__(
+            "query_efficiency",
+            parameters={"epsilon": self.epsilon, "decision_stream": decision_stream},
+        )
+        self.reset()
+
+    def initial(self, x, theta, environment):
+        error = task_distance(x, theta, environment)
+        self.n_total += 1
+        self.n_observed += int(np.isfinite(error))
+        if error <= self.epsilon:
+            self.hit = 0
+
+    def update(self, t, x, theta, observation, environment):
+        q = int(observation.query_index)
+        self.budget = max(self.budget, q)
+        error = task_distance(x, theta, environment)
+        self.n_total += 1
+        self.n_observed += int(np.isfinite(error))
+        if self.hit is None and error <= self.epsilon:
+            self.hit = q
+        self._record(self.hit if self.hit is not None else np.nan)
+
+    def _aggregate(self, history):
+        return float(self.hit) if self.hit is not None else float("nan")
+
+    def get_result(self, tail_fraction=0.2):
+        validate_tail(tail_fraction)
+        return self._aggregate(self._history)
+
+    def status(self, tail_fraction=0.2):
+        validate_tail(tail_fraction)
+        return {
+            "state": (
+                "reached"
+                if self.hit is not None
+                else "right_censored" if self.n_observed else "no_observations"
+            ),
+            "n_total": self.n_total,
+            "n_valid": self.n_observed,
+            "reached": self.hit is not None,
+            "budget": self.budget,
+            "restricted_queries": (
+                self.hit
+                if self.hit is not None
+                else self.budget if self.n_observed else None
+            ),
+            "epsilon": self.epsilon,
+            "decision_stream": self.decision_stream,
+        }
+
+    def reset(self):
+        super().reset()
+        self.hit, self.budget = None, 0
+        self.n_observed = self.n_total = 0
+
+
+class MetricsCollection:
+    """Collision-checked collection with stable exact-parameter metric identities."""
+
+    def __init__(self, metrics):
+        if not metrics:
+            raise ValueError("MetricsCollection requires at least one metric")
+        metrics = list(metrics)
+        for m in list(metrics):
+            if isinstance(m, NormalizedLyapunovMetric) and not any(
+                type(raw) is LyapunovMetric and raw.rho == m.rho for raw in metrics
+            ):
+                metrics.append(LyapunovMetric(m.rho))
+        self.metrics = metrics
+        if len({m.metric_id for m in metrics}) != len(metrics):
+            raise ValueError("Duplicate metric identity")
+        # Keep familiar labels when unique; parameter collisions use full IDs.
+        names = [m.name for m in metrics]
+        for m in metrics:
+            if names.count(m.name) > 1:
+                m.name = m.metric_id
+        if len({m.rho for m in metrics if m.rho is not None}) > 1:
+            raise ValueError("Inconsistent Hölder exponents across metrics")
+
+    def update(self, t, x, theta, observation, environment):
+        for metric in self.metrics:
+            metric.update(t, x, theta, observation, environment)
+        return self.get_current_values()
+
+    def initialize(self, x, theta, environment):
+        for metric in self.metrics:
+            if isinstance(metric, QueryEfficiencyMetric):
+                metric.initial(x, theta, environment)
+
+    def finish(self, queries):
+        for metric in self.metrics:
+            if isinstance(metric, QueryEfficiencyMetric):
+                metric.budget = int(queries)
+
+    @staticmethod
+    def _derived_key(metric, quantity):
+        # Multiple parameterizations of a metric keep their derived histories
+        # separate as well as their primary scalar values.
+        return (
+            metric.metric_id + ":" + quantity
+            if metric.name == metric.metric_id
+            else quantity
+        )
+
+    def get_results(self, tail_fraction=0.2):
+        validate_tail(tail_fraction)
+        values = {m.name: m.get_result(tail_fraction) for m in self.metrics}
+        for m in self.metrics:
+            if isinstance(m, DynamicRegretMetric) and m.normalize_by_path:
+                values[self._derived_key(m, "dynamic_regret_path_normalized")] = (
+                    m._cumulative_regret / m._path_variation
+                    if m._path_variation > 0
+                    else float("nan")
+                )
+        return values
+
+    def get_definitions(self):
+        result = {m.name: m.definition() for m in self.metrics}
+        for m in self.metrics:
+            if isinstance(m, DynamicRegretMetric):
+                result[self._derived_key(m, "instantaneous_regret")] = {
+                    **m.definition(),
+                    "id": m.metric_id + ":increment",
+                    "name": "instantaneous_regret",
+                    "formula": "L(x_t;theta_t)-L(theta_t;theta_t)",
+                    "scope": "tail",
+                    "units": "loss",
+                    "temporal_aggregation": "mean",
+                }
+            if isinstance(m, DynamicRegretMetric) and m.normalize_by_path:
+                result[self._derived_key(m, "dynamic_regret_path_normalized")] = {
+                    **m.definition(),
+                    "id": m.metric_id + ":path_normalized",
+                    "name": "dynamic_regret_path_normalized",
+                    "formula": "R_T/P_T",
+                    "units": "cumulative loss / target path length",
+                }
+        return result
+
+    def get_status(self, tail_fraction=0.2):
+        result = {m.name: m.status(tail_fraction) for m in self.metrics}
+        for m in self.metrics:
+            if isinstance(m, DynamicRegretMetric):
+                result[self._derived_key(m, "instantaneous_regret")] = {
+                    "state": "history_only",
+                    "n_total": len(m._increments),
+                    "n_valid": int(np.isfinite(m._increments).sum()),
+                }
+            if isinstance(m, DynamicRegretMetric) and m.normalize_by_path:
+                result[self._derived_key(m, "dynamic_regret_path_normalized")] = {
+                    "state": "ok" if m._path_variation > 0 else "zero_path_variation",
+                    "path_variation": m._path_variation,
+                    "n_total": len(m._history),
+                    "n_valid": sum(
+                        np.isfinite(v) and np.isfinite(p) and p > 0
+                        for v, p in zip(m._history, m._path_history)
+                    ),
+                }
+        return result
+
+    def get_histories(self):
+        result = {m.name: m.get_history() for m in self.metrics}
+        for m in self.metrics:
+            if isinstance(m, DynamicRegretMetric):
+                result[self._derived_key(m, "instantaneous_regret")] = (
+                    m._increments.copy()
+                )
+                if m.normalize_by_path:
+                    result[self._derived_key(m, "dynamic_regret_path_normalized")] = [
+                        v / p if p > 0 else float("nan")
+                        for v, p in zip(m._history, m._path_history)
+                    ]
+        return result
+
+    def get_directions(self):
+        return {m.name: m.direction for m in self.metrics}
+
+    def reset(self):
+        for m in self.metrics:
+            m.reset()
+
+    def get_current_values(self):
+        return {
+            m.name: m._current_value
+            for m in self.metrics
+            if m._current_value is not None
+        }
+
+
+def ensemble_metrics(results):
+    """Summarize a complete ensemble on its declared observation grid.
+
+    ``total_steps`` is the runner's update horizon, not necessarily the number
+    of metric samples: multi-query methods record V after each query. Reported
+    ensemble T counts samples, and the tail is selected on that same grid.
+    """
+    if not results:
+        return {}
+    definitions = results[0].metric_definitions
+    output = {}
+
+    def structural(value):
+        if isinstance(value, dict):
+            return {
+                k: structural(v)
+                for k, v in value.items()
+                if k not in ("seed", "_rng_state", "oracle_rng_state", "rng_state")
+            }
+        if isinstance(value, list):
+            return [structural(v) for v in value]
+        return value
+
+    def signature(result):
+        return json.dumps(
+            _plain(
+                {
+                    "environment": structural(result.environment_config.to_dict()),
+                    "optimizer": {
+                        "implementation": result.optimizer_info.implementation_id,
+                        "class": result.optimizer_info.class_name,
+                        "oracle_type": result.optimizer_info.oracle_type,
+                        "schedule": result.optimizer_info.update_schedule,
+                        "parameters": result.optimizer_info.hyperparameters,
+                    },
+                    "horizon": result.metadata.get("total_steps"),
+                    "grid": result.metadata.get("time_grid"),
+                    "initialization": result.metadata.get("initialization"),
+                    "decision_stream": result.metadata.get("decision_stream"),
+                    "tail": result.metadata.get("tail_fraction"),
+                    "definitions": result.metric_definitions,
+                }
+            ),
+            sort_keys=True,
+            default=str,
+        )
+
+    seeds = [r.metadata.get("seed") for r in results]
+    homogeneous = len({signature(r) for r in results}) == 1
+    series_complete = (
+        None not in seeds
+        and len(set(seeds)) == len(seeds)
+        and all(r.status == "SUCCESS" for r in results)
+        and all(
+            set(r.metadata.get("expected_series_seeds", seeds)) == set(seeds)
+            for r in results
+        )
+    )
+    complete = len(results) >= 2 and series_complete and homogeneous
+    metadata = results[0].metadata
+    if "time_grid" in metadata:
+        grid = metadata["time_grid"]
+        sample_count = grid.get("size") if isinstance(grid, dict) else None
+    else:
+        # Historical step-indexed histories have no explicit observation grid.
+        sample_count = metadata.get("total_steps")
+    if (
+        isinstance(sample_count, bool)
+        or not isinstance(sample_count, (int, np.integer))
+        or sample_count <= 0
+    ):
+        sample_count = None
+    for name, definition in definitions.items():
+        if definition["scope"] == "ensemble":
+            row = {
+                "value": None,
+                "state": "incomplete_ensemble",
+                "N": len(results),
+                "T": sample_count,
+                "gamma": results[0].metadata.get("tail_fraction"),
+                "definition": definition,
+                "certified_bound": False,
+            }
+            if complete and sample_count is not None:
+                arrays = [
+                    np.asarray(r.metrics_history.get(name, []), float) for r in results
+                ]
+                if (
+                    len({a.shape for a in arrays}) == 1
+                    and arrays[0].shape == (sample_count,)
+                    and all(np.isfinite(a).all() for a in arrays)
+                ):
+                    means = np.mean(arrays, axis=0)
+                    fraction = validate_tail(results[0].metadata["tail_fraction"])
+                    tail = means[int(len(means) * (1 - fraction)) :]
+                    if len(tail):
+                        row.update(
+                            value=float(tail.max()),
+                            state="finite_horizon_estimate",
+                            T=len(means),
+                            gamma=fraction,
+                        )
+            output[name] = row
+        elif definition["class"] == "QueryEfficiencyMetric":
+            states = [r.metric_status.get(name) for r in results]
+            valid = [
+                s
+                for s in states
+                if s is not None and s.get("state") in ("reached", "right_censored")
+            ]
+            same_budget = len({s["budget"] for s in valid}) == 1
+            comparable = same_budget and homogeneous and len(valid) == len(results)
+            usable = comparable and series_complete
+            output[name] = {
+                "state": (
+                    "ok"
+                    if usable
+                    else (
+                        "incomplete_ensemble"
+                        if comparable
+                        else "incomparable_protocol_or_budget"
+                    )
+                ),
+                "N": len(states),
+                "n_valid": len(valid),
+                "n_undefined": len(states) - len(valid),
+                "reached_fraction": (
+                    float(np.mean([s["reached"] for s in valid])) if usable else None
+                ),
+                "n_censored": sum(not s["reached"] for s in valid),
+                "restricted_mean": (
+                    float(np.mean([s["restricted_queries"] for s in valid]))
+                    if usable
+                    else None
+                ),
+                "definition": definition,
+            }
+    return output

@@ -1,0 +1,454 @@
+"""Private, series-scoped execution for the canonical suite.
+
+Only plain job descriptions cross into workers. Evaluator payloads cross back
+through internal pipes, never a public future, callback or checkpoint file.
+"""
+
+from contextvars import ContextVar
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
+import hashlib
+import importlib
+import inspect
+import json
+import multiprocessing as mp
+from multiprocessing.connection import wait
+import os
+from pathlib import Path
+import signal
+import threading
+import time
+import warnings
+
+from threadpoolctl import threadpool_info, threadpool_limits
+
+from wind_benchmark.core.privacy import (
+    EvaluationSession,
+    GroundTruthAccessError,
+    _current,
+    _evaluation,
+    _library_caller,
+    _on_series_abort,
+    _user_call,
+)
+from wind_benchmark.core.resources import SeriesResourceSampler
+from wind_benchmark.reporting.common import json_safe
+
+EXECUTOR_VERSION = "canonical_process_v1"
+_cancel = ContextVar("wind_worker_cancel", default=None)
+
+
+class RunCancelled(KeyboardInterrupt):
+    """Cooperative cancellation; must not become an algorithm ERROR row."""
+
+
+class WorkerError(RuntimeError):
+    """Infrastructure failure, distinct from a scientific numerical outcome."""
+
+
+class _CancellationFlag:
+    """Shared byte: no interprocess mutex to strand after a worker is killed."""
+
+    def __init__(self, context):
+        self.flag = context.RawValue("b", 0)
+
+    def is_set(self):
+        return self.flag.value != 0
+
+    def set(self):
+        self.flag.value = 1
+
+
+def check_cancelled():
+    event = _cancel.get()
+    if event is not None and event.is_set():
+        raise RunCancelled("Canonical execution stopped")
+
+
+@dataclass(frozen=True)
+class CatalogFactory:
+    name: str
+    parameters: dict
+
+    def __call__(self, task, seed):
+        from wind_benchmark.algorithms.catalog import create_optimizer
+
+        return create_optimizer(self.name, self.parameters)
+
+
+def execution_options(workers, compatible):
+    if type(workers) is not int or workers < 1:
+        raise ValueError("workers must be a positive integer (not bool)")
+    cpu = os.cpu_count() or 1
+    if workers > cpu:
+        warnings.warn(f"workers={workers} exceeds {cpu} logical CPUs", stacklevel=2)
+    return {
+        "version": EXECUTOR_VERSION,
+        "workers_requested": workers,
+        "workers_effective": min(workers, compatible),
+        "backend": "serial" if workers == 1 else "multiprocessing.Process",
+        "start_method": None if workers == 1 else "spawn",
+        "native_threads": 1,
+        "logical_cpus": cpu,
+        "resume": False,
+        "resource_note": "Elapsed run time under concurrent load; RSS includes interpreter/evaluator, not isolated optimizer allocations",
+    }
+
+
+def describe_method(method):
+    factory = method.factory
+    if isinstance(factory, CatalogFactory):
+        description = {
+            "kind": "catalog",
+            "name": factory.name,
+            "parameters": factory.parameters,
+        }
+    else:
+        module = getattr(factory, "__module__", None)
+        name = getattr(factory, "__name__", "")
+        valid = (
+            inspect.isfunction(factory)
+            and module not in (None, "__main__", "__mp_main__")
+            and factory.__qualname__ == name
+            and name != "<lambda>"
+        )
+        if valid:
+            try:
+                valid = getattr(importlib.import_module(module), name, None) is factory
+            except ImportError:
+                valid = False
+        if not valid:
+            raise ValueError(
+                f"{method.name}: workers>1 requires an importable top-level factory(task, seed) "
+                "from a module, not a lambda, closure or __main__ function; use workers=1 otherwise"
+            )
+        description = {"kind": "import", "module": module, "name": name}
+    return {
+        "factory": description,
+        **{
+            key: getattr(method, key)
+            for key in (
+                "name",
+                "oracle_type",
+                "geometries",
+                "parameters",
+                "implementation",
+                "implementation_version",
+                "source",
+                "variant",
+            )
+        },
+        "rng_key": method.stream_id,
+    }
+
+
+def _method(description):
+    from wind_benchmark.experiments.standard import Method
+
+    fields = dict(description)
+    factory = fields.pop("factory")
+    if factory["kind"] == "catalog":
+        fields["factory"] = CatalogFactory(factory["name"], factory["parameters"])
+    else:
+        module = _user_call(importlib.import_module, factory["module"])
+        fields["factory"] = _user_call(getattr, module, factory["name"])
+    return Method(**fields)
+
+
+def _execute(method, task, profile, seed):
+    _library_caller()
+    from wind_benchmark.experiments.standard import run_one
+
+    traces, recommendations = [], []
+
+    def collect_trace(metadata, values):
+        traces.append((metadata, values))
+
+    def collect_recommendations(metadata, queries, positions):
+        recommendations.append((metadata, queries, positions))
+
+    result = run_one(
+        method, task, profile, seed, collect_trace, collect_recommendations
+    )
+    return result, traces, recommendations
+
+
+def _watch_parent(done, cancel):
+    parent = mp.parent_process()
+    while not done.wait(0.2):
+        if parent is not None and not parent.is_alive():
+            cancel.set()
+            if not done.wait(5):
+                os._exit(74)  # Only this orphan worker; no evaluator exports.
+            return
+
+
+def _worker(connection, cancel):
+    # A multiprocessing bootstrap target, deliberately not a callable evaluator API.
+    if mp.parent_process() is None:
+        raise GroundTruthAccessError(
+            "Worker entry requires the internal process bootstrap"
+        )
+    from wind_benchmark.experiments.standard import Profile, Task
+
+    signal.signal(signal.SIGINT, signal.SIG_IGN)
+    done = threading.Event()
+    watcher = threading.Thread(target=_watch_parent, args=(done, cancel), daemon=True)
+    watcher.start()
+    token = _cancel.set(cancel)
+    session = EvaluationSession()
+    try:
+        with threadpool_limits(limits=1), session:
+            try:
+                connection.send(("ready", os.getpid(), threadpool_info()))
+                while not cancel.is_set():
+                    if not connection.poll(0.1):
+                        continue
+                    job = connection.recv()
+                    if job is None:
+                        break
+                    index, method, task, profile, seed = job
+                    profile = dict(profile)
+                    profile["seeds"] = tuple(profile["seeds"])
+                    with _evaluation():
+                        payload = _execute(
+                            _method(method), Task(**task), Profile(**profile), seed
+                        )
+                    connection.send(("result", index, payload))
+            finally:
+                session._abort_worker()  # Never release retained objects between jobs.
+    except (EOFError, BrokenPipeError, RunCancelled):
+        pass
+    except GroundTruthAccessError:
+        if session.state != "aborted":
+            raise
+    finally:
+        done.set()
+        watcher.join(timeout=1)
+        _cancel.reset(token)
+        connection.close()
+
+
+class Execution:
+    """Coordinator-owned operational state and deferred export transaction."""
+
+    def __init__(self, output, options, total):
+        _library_caller()
+        self.output = Path(output)
+        self.options = options
+        self.total = total
+        self.completed = 0
+        self.started = time.perf_counter()
+        self.state = "running"
+        self.pending = []
+        self.sampler = SeriesResourceSampler()
+        self.peak = 0
+        self.manifest = None
+        self.pids = []
+        self.ready_pids = []
+        self.last_status = 0.0
+        _on_series_abort(self.aborted)
+        self.status(force=True)
+
+    def status(self, *, force=False):
+        now = time.perf_counter()
+        if not force and now - self.last_status < 1:
+            return
+        value = {
+            "executor_version": EXECUTOR_VERSION,
+            "status": self.state,
+            "coordinator_pid": os.getpid(),
+            "worker_pids": self.pids,
+            "ready_worker_pids": self.ready_pids,
+            "completed_runs": self.completed,
+            "total_runs": self.total,
+            "updated_utc": datetime.now(timezone.utc).isoformat(),
+            "elapsed_seconds": now - self.started,
+            "workers_requested": self.options["workers_requested"],
+            "workers_effective": self.options["workers_effective"],
+        }
+        temporary = self.output / "execution_status.json.tmp"
+        temporary.write_text(
+            json.dumps(value, indent=2, allow_nan=False), encoding="utf-8"
+        )
+        temporary.replace(self.output / "execution_status.json")
+        self.last_status = now
+
+    def defer(self, function, *args, **kwargs):
+        _library_caller()
+        self.pending.append((function, args, kwargs))
+
+    def collected(self):
+        self.completed += 1
+        self.status()
+
+    def computed(self, manifest):
+        self.manifest = manifest
+        self.peak = self.sampler.finish()
+        self.options.update(
+            compute_and_aggregation_seconds=time.perf_counter() - self.started,
+            sampled_peak_total_rss_bytes=self.peak,
+            rss_sampling="10 ms peak of contemporaneous coordinator + worker RSS sums",
+        )
+        self.state = "awaiting_release"
+        self.status(force=True)
+
+    def aborted(self):
+        if self.state in {"complete", "export_failed", "stopped", "failed"}:
+            return
+        self.failed(False)
+
+    def failed(self, stopped):
+        self.sampler.finish()
+        self.pending.clear()
+        self.state = "stopped" if stopped else "failed"
+        try:
+            self.status(force=True)
+        except OSError:
+            pass  # Preserve the original failure if operational storage is unavailable.
+
+    def export(self):
+        _library_caller()
+        self.state = "exporting"
+        self.status(force=True)
+        sampler = SeriesResourceSampler()
+        try:
+            for function, args, kwargs in self.pending:
+                function(*args, **kwargs)
+            hashes = {}
+            for path in sorted(self.output.rglob("*")):
+                if path.is_file() and path.name not in {
+                    "execution_status.json",
+                    "execution_status.json.tmp",
+                    "artifact_hashes.json",
+                    "manifest.json",
+                }:
+                    with path.open("rb") as stream:
+                        hashes[path.relative_to(self.output).as_posix()] = (
+                            hashlib.file_digest(stream, "sha256").hexdigest()
+                        )
+            self.options.update(
+                total_wall_seconds=time.perf_counter() - self.started,
+                sampled_peak_total_rss_bytes=max(self.peak, sampler.finish()),
+            )
+            # Final bookkeeping takes place after data export and inventory hashing.
+            manifest_path = self.output / "manifest.json"
+            manifest_path.write_text(
+                json.dumps(json_safe(self.manifest), indent=2, allow_nan=False),
+                encoding="utf-8",
+            )
+            hashes["manifest.json"] = hashlib.sha256(
+                manifest_path.read_bytes()
+            ).hexdigest()
+            (self.output / "artifact_hashes.json").write_text(
+                json.dumps(hashes, indent=2), encoding="utf-8"
+            )
+            self.state = "complete"
+            self.status(force=True)
+        except BaseException:
+            self.state = "export_failed"
+            self.status(force=True)
+            raise
+        finally:
+            sampler.finish()
+            self.pending.clear()
+
+    def results(self, jobs, descriptions, profile):
+        """Yield completed payloads internally; caller restores design order."""
+        _library_caller()
+        if self.options["workers_requested"] == 1:
+            for index, method, task, seed in jobs:
+                yield index, _execute(method, task, profile, seed)
+            return
+        jobs = iter(jobs)
+        context = mp.get_context("spawn")
+        cancel = _CancellationFlag(context)
+        children = {}
+        owner = _current.get()
+        active = set()
+        try:
+            for _ in range(self.options["workers_effective"]):
+                parent, child = context.Pipe()
+                process = context.Process(
+                    target=_worker, args=(child, cancel), daemon=True
+                )
+                process.start()
+                child.close()
+                children[parent] = process
+                self.pids.append(process.pid)
+                self.sampler.add(process.pid)
+            self.status(force=True)
+            pending = {}
+            while children:
+                ready = wait(
+                    [*children, *(p.sentinel for p in children.values())], timeout=0.2
+                )
+                self.status()
+                for connection in [c for c in ready if c in children]:
+                    process = children[connection]
+                    try:
+                        message = connection.recv()
+                    except EOFError as exc:
+                        raise WorkerError(
+                            f"Worker {process.pid} exited without completing its assignment"
+                        ) from exc
+                    if message[0] == "result":
+                        index = pending.pop(connection)
+                        if index != message[1]:
+                            raise WorkerError("Worker returned an unexpected job ID")
+                        owner._end(True)
+                        active.remove(index)
+                        yield index, message[2]
+                    elif message[0] == "ready":
+                        self.ready_pids.append(message[1])
+                        self.options.setdefault("worker_native_pools", []).append(
+                            message[2]
+                        )
+                        self.status(force=True)
+                    else:
+                        raise WorkerError("Invalid worker message")
+                    try:
+                        index, method, task, seed = next(jobs)
+                    except StopIteration:
+                        connection.send(None)
+                        process.join(timeout=5)
+                        if process.is_alive() or process.exitcode != 0:
+                            raise WorkerError(f"Worker {process.pid} failed to close")
+                        connection.close()
+                        self.sampler.discard(process.pid)
+                        del children[connection]
+                        continue
+                    owner._start()
+                    active.add(index)
+                    pending[connection] = index
+                    connection.send(
+                        (
+                            index,
+                            descriptions[id(method)],
+                            asdict(task),
+                            asdict(profile),
+                            seed,
+                        )
+                    )
+                for process in children.values():
+                    if process.sentinel in ready or not process.is_alive():
+                        raise WorkerError(
+                            f"Worker {process.pid} exited unexpectedly (code {process.exitcode})"
+                        )
+        finally:
+            cancel.set()
+            deadline = time.monotonic() + 5
+            for process in children.values():
+                process.join(timeout=max(0, deadline - time.monotonic()))
+            for process in children.values():
+                if process.is_alive():
+                    process.terminate()
+            for connection, process in children.items():
+                process.join(timeout=5)
+                if process.is_alive():
+                    process.kill()
+                    process.join()
+                self.sampler.discard(process.pid)
+                connection.close()
+            for _ in active:
+                owner._end(False)

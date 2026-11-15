@@ -1,20 +1,38 @@
 import pytest
 
-from wind_benchmark.web import (
+from wind_benchmark.interfaces.web import (
     ConfigurationError,
+    _resolve_roots,
     capability_catalog,
     resolve_output_dir,
     validate_config,
 )
-from wind_benchmark.web_runner import (
+from wind_benchmark.interfaces.web_runner import (
     WorkbenchConfigurationError,
     run_workbench,
     validate_workbench_config,
 )
 
 
+def test_source_assets_and_outputs_keep_the_repository_root(tmp_path):
+    module = tmp_path / "checkout" / "src" / "interfaces" / "web.py"
+    root, assets = _resolve_roots(module, tmp_path / "other")
+    assert root == tmp_path / "checkout"
+    assert assets == root / "web"
+
+
+def test_installed_assets_do_not_send_outputs_to_site_packages(tmp_path):
+    package = tmp_path / "site-packages" / "wind_benchmark"
+    (package / "_web").mkdir(parents=True)
+    work = tmp_path / "work"
+    root, assets = _resolve_roots(package / "interfaces" / "web.py", work)
+    assert root == work
+    assert assets == package / "_web"
+
+
 def valid_config():
     return {
+        "schema_version": 3,
         "output_dir": "results/web_test",
         "seeds": [42, 43],
         "steps": 20,
@@ -54,6 +72,7 @@ def test_output_directory_cannot_escape_project():
 
 def workbench_config():
     return {
+        "schema_version": 3,
         "environment": {
             "dim": 5,
             "x_bounds": [-10, 10],
@@ -75,6 +94,17 @@ def workbench_config():
         },
         "metrics": ["tracking_error", "dynamic_regret"],
     }
+
+
+def test_web_rda_requires_explicit_shared_zero_start_and_runs(tmp_path):
+    config = workbench_config()
+    config["optimizer"] = {"name": "RDA", "params": {}}
+    with pytest.raises(WorkbenchConfigurationError, match="runner.initial_x"):
+        validate_workbench_config(config)
+    config["runner"].update(initial_x=[0.0] * 5, steps=3)
+    assert validate_workbench_config(config) == config
+    result = run_workbench(config, tmp_path)
+    assert result["runs"][0]["optimizer"] == "RDA"
 
 
 def test_validate_workbench_config_accepts_general_benchmark():
@@ -116,28 +146,27 @@ def test_capability_catalog_exposes_full_workbench():
     assert len(catalog["drifts"]) == 8
     assert len(catalog["noises"]) == 7
     assert len(catalog["oracles"]) == 5
-    assert len(catalog["optimizers"]) == 25
+    assert len(catalog["optimizers"]) == 22
     optimizer_names = {item["name"] for item in catalog["optimizers"]}
-    assert "CoupledL2Adam" in optimizer_names
-    assert "LookaheadNesterov" in optimizer_names
-    assert "AdamW" not in optimizer_names
-    assert "Nesterov" not in optimizer_names
+    assert "CoupledL2Adam" not in optimizer_names
+    assert "PolyakRuppertSGD" in optimizer_names
+    assert "AdamW" in optimizer_names
+    assert "Nesterov" in optimizer_names
 
 
-def test_workbench_accepts_legacy_alias_and_reports_canonical_name(tmp_path):
+def test_workbench_reports_correct_adamw_without_alias(tmp_path):
     config = workbench_config()
     config["optimizer"] = {"name": "AdamW", "params": {"lr": 0.001}}
     config["runner"]["steps"] = 2
     config["runner"]["output_dir"] = "results"
 
-    with pytest.warns(FutureWarning, match="AdamW is a legacy alias"):
-        summary = run_workbench(config, tmp_path)
+    summary = run_workbench(config, tmp_path)
 
-    assert summary["optimizer"] == "CoupledL2Adam"
-    assert summary["requested_aliases"] == {"CoupledL2Adam": "AdamW"}
-    assert summary["runs"][0]["requested_alias"] == "AdamW"
-    assert summary["runs"][0]["implementation_id"] == "coupled_l2_adam_v1"
-    assert (tmp_path / "results" / "CoupledL2Adam_seed42.json").is_file()
+    assert summary["optimizer"] == "AdamW"
+    assert "requested_aliases" not in summary
+    assert "requested_alias" not in summary["runs"][0]
+    assert summary["runs"][0]["implementation_id"] == "wind060.AdamW.v1"
+    assert (tmp_path / "results" / "AdamW_seed42.json").is_file()
 
 
 def test_workbench_runner_executes_general_configuration(tmp_path):

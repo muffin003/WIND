@@ -1,4 +1,5 @@
 {
+  "schema_version": 3,
   "output_dir": "results/lyapunov",
   "seeds": [42, 43, 44, 45, 46],
   "steps": 500,

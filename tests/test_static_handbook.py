@@ -29,7 +29,7 @@ def test_handbook_contains_local_start_instructions_in_all_languages():
     assert "Run locally after downloading" in GUIDES
     assert "Локальный запуск после скачивания" in GUIDES
     assert "下载后的本地启动" in GUIDES
-    assert "python -m wind_benchmark.web" in GUIDES
+    assert "python -m wind_benchmark.interfaces.web" in GUIDES
     assert "### Start locally after downloading the repository" in README
 
 

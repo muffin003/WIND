@@ -1,101 +1,47 @@
-import numpy as np
 import pytest
-
-from wind_benchmark.benchmark import OptimizerInfo
-from wind_benchmark.catalog import (
-    OPTIMIZER_ALIASES,
+from wind_benchmark.algorithms.protocol import TaskSpec
+from wind_benchmark.core.runner import OptimizerInfo
+from wind_benchmark.algorithms.catalog import (
+    OPTIMIZER_SPECS,
     accepted_optimizer_names,
     canonical_optimizer_names,
     create_optimizer,
     resolve_optimizer_spec,
 )
-from wind_benchmark.experiment import HeavyBall, Nesterov
-from wind_benchmark.oracle import Observation
-
-EXPECTED_ALIASES = {
-    "Nesterov": "HeavyBall",
-    "AdamW": "CoupledL2Adam",
-    "OnePointSPSA": "OnePointTemporalSecant",
-    "FDSA": "NormalizedRandomSecant",
-    "SPSA": "ScaledTemporalSecant",
-    "ZOSGD": "GaussianTemporalSecant",
-    "ZOSignSGD": "SignedGaussianTemporalSecant",
-    "KieferWolfowitz": "ShrinkingTemporalSecant",
-    "NedicSubgradient": "DiminishingGaussianSecant",
-    "AcceleratedSPSA": "MomentumTemporalSecant",
-    "CMAES": "EliteCovarianceSearch",
-    "GPUCB": "DistanceScaledExploration",
-}
 
 
-def _gradient_observation(x, gradient):
-    return Observation(
-        x=np.asarray(x, dtype=float),
-        t=0,
-        value=0.0,
-        grad=np.asarray(gradient, dtype=float),
-        optimum_value=0.0,
-        mode="first-order",
-    )
+def test_catalog_has_only_current_identifiers():
+    names = canonical_optimizer_names()
+    assert len(names) == len(set(names)) == 22
+    assert accepted_optimizer_names() == frozenset(names)
+    for retired in (
+        "SGD_Polyak",
+        "LookaheadNesterov",
+        "CoupledL2Adam",
+        "ScaledTemporalSecant",
+        "CMAES",
+        "GPUCB",
+        "SMD",
+    ):
+        with pytest.raises(KeyError):
+            resolve_optimizer_spec(retired)
 
 
-def test_catalog_exposes_only_canonical_names():
-    canonical = canonical_optimizer_names()
-    assert len(canonical) == 25
-    assert len(canonical) == len(set(canonical))
-    assert not set(EXPECTED_ALIASES).intersection(canonical)
-    assert accepted_optimizer_names() == frozenset((*canonical, *EXPECTED_ALIASES))
+@pytest.mark.parametrize("spec", OPTIMIZER_SPECS, ids=lambda s: s.canonical_name)
+def test_catalog_metadata_identifies_formula_not_alias(spec):
+    algorithm = spec.instantiate()
+    info = OptimizerInfo.from_optimizer(algorithm)
+    assert info.name == spec.canonical_name
+    assert info.hyperparameters == spec.default_parameters
+    assert info.source.startswith("https://")
+    assert info.variant and info.implementation_version == spec.implementation_version
+    assert "alias" not in str(info.to_dict())
+    assert not hasattr(algorithm, "step")
+    assert not hasattr(algorithm, "requested_alias")
 
 
-def test_legacy_aliases_resolve_to_declared_canonical_names():
-    assert OPTIMIZER_ALIASES == EXPECTED_ALIASES
-    for alias, canonical_name in EXPECTED_ALIASES.items():
-        assert resolve_optimizer_spec(alias).canonical_name == canonical_name
-        with pytest.warns(FutureWarning, match=f"{alias} is a legacy alias"):
-            optimizer = create_optimizer(alias)
-        assert optimizer.name == canonical_name
-        assert optimizer.canonical_name == canonical_name
-        assert optimizer.requested_alias == alias
-
-
-def test_alias_creation_warns_and_exports_canonical_identity():
-    with pytest.warns(FutureWarning, match="AdamW is a legacy alias"):
-        optimizer = create_optimizer("AdamW", {"lr": 0.02})
-
-    assert optimizer.name == "CoupledL2Adam"
-    assert optimizer.canonical_name == "CoupledL2Adam"
-    assert optimizer.requested_alias == "AdamW"
-    assert optimizer.implementation_id == "coupled_l2_adam_v1"
-    info = OptimizerInfo.from_optimizer(optimizer)
-    assert info.name == "CoupledL2Adam"
-    assert info.requested_alias == "AdamW"
-    assert info.implementation_id == "coupled_l2_adam_v1"
-
-
-def test_legacy_nesterov_preserves_historical_heavy_ball_update():
-    heavy_ball = HeavyBall(lr=0.05, beta=0.9)
-    with pytest.warns(FutureWarning, match="Nesterov is a legacy alias"):
-        legacy = Nesterov(lr=0.05, beta=0.9)
-
-    heavy_ball.reset()
-    legacy.reset()
-    observations = [
-        _gradient_observation([0.0, 0.0], [1.0, -2.0]),
-        _gradient_observation([-0.05, 0.1], [0.5, -0.25]),
-    ]
-    for observation in observations:
-        np.testing.assert_allclose(
-            heavy_ball.step(observation), legacy.step(observation)
-        )
-
-
-def test_lookahead_nesterov_is_distinct_from_heavy_ball():
-    heavy_ball = create_optimizer("HeavyBall", {"lr": 0.05, "beta": 0.9})
-    lookahead = create_optimizer("LookaheadNesterov", {"lr": 0.05, "beta": 0.9})
-    first = _gradient_observation([0.0, 0.0], [1.0, -2.0])
-    first_heavy = heavy_ball.step(first)
-    first_lookahead = lookahead.step(first)
-    np.testing.assert_allclose(first_heavy, first_lookahead)
-
-    second = _gradient_observation(first_heavy, [0.5, -0.25])
-    assert not np.allclose(heavy_ball.step(second), lookahead.step(second))
+def test_standard_names_are_distinct_real_implementations():
+    for name in ("Nesterov", "AdamW", "SPSA"):
+        assert type(create_optimizer(name)).__name__ == name
+    assert create_optimizer("HeavyBall").parameters == {"lr": 0.1, "beta": 0.9}
+    assert create_optimizer("Nesterov").parameters == {"lr": 0.05, "beta": 0.9}

@@ -1,6 +1,11 @@
 name: Python Tests
 
+env:
+  OPENBLAS_NUM_THREADS: '1'
+  OMP_NUM_THREADS: '1'
+
 on:
+  workflow_dispatch:
   push:
     branches: [ "main" ]
   pull_request:
@@ -8,21 +13,59 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.11', '3.12']
+        extras: [dev, 'gym,dev', 'rl,dev']
+    runs-on: ${{ matrix.os }}
 
     steps:
     - uses: actions/checkout@v4
     
-    - name: Set up Python 3.11
+    - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: "3.11"
+        python-version: ${{ matrix.python }}
     
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -e ".[gym,dev]"
+        python -m pip install -e ".[${{ matrix.extras }}]"
 
     - name: Run tests
       run: |
         python -m pytest -v
+
+  distribution:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.11', '3.12']
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python }}
+    - name: Build and inspect distributions
+      run: |
+        python -m pip install "build>=1,<2"
+        python -m build
+        python scripts/check_distribution.py --dist dist
+    - name: Install wheel without an editable checkout
+      run: python -c "import pathlib, subprocess, sys; wheel = next(pathlib.Path('dist').glob('*.whl')); subprocess.check_call([sys.executable, '-m', 'pip', 'install', str(wheel)])"
+    - name: Check installed package and web assets
+      run: |
+        python -I scripts/check_distribution.py --installed-smoke
+        wind-benchmark --help
+        wind-benchmark-ui --help
+    - name: Check installed canonical spawn executor
+      run: >-
+        python -I -c "import json, pathlib, subprocess, sys, tempfile;
+        temporary = tempfile.TemporaryDirectory(); output = pathlib.Path(temporary.name) / 'canonical';
+        subprocess.check_call([sys.executable, '-I', '-m', 'wind_benchmark.experiments.standard', '--profile', 'smoke', '--workers', '2', '--algorithms', 'SGD', 'SPSA', '--tasks', 'clean', '--output-dir', str(output), '--no-plots']);
+        assert json.loads((output / 'execution_status.json').read_text())['status'] == 'complete';
+        temporary.cleanup()"

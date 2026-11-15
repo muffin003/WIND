@@ -5,7 +5,7 @@ import pytest
 
 gym = pytest.importorskip("gymnasium")
 
-from wind_benchmark.core import (
+from wind_benchmark.core.environment import (
     DynamicEnvironment,
     GrassmannLandscape,
     StationaryDrift,
@@ -17,9 +17,10 @@ from wind_benchmark.core import (
     GaussianNoise,
     make_environment,
 )
-from wind_benchmark.oracle import FirstOrderOracle, ZeroOrderOracle
-from wind_benchmark.gym_env import WindGymEnv
-from wind_benchmark.manifold import principal_angle_distance
+from wind_benchmark.core.oracle import FirstOrderOracle, ZeroOrderOracle
+from wind_benchmark.integrations.gym_env import WindGymEnv
+from wind_benchmark.integrations.gym_evaluation import GymEvaluationSession
+from wind_benchmark.core.geometry import principal_angle_distance
 
 
 def _zo_env(**kw):
@@ -37,7 +38,7 @@ def test_spaces_and_reset():
     obs, info = env.reset(seed=0)
     assert env.observation_space.contains(obs)
     assert obs.shape == env.observation_space.shape
-    assert "theta" in info and "error" in info
+    assert "theta" not in info and "error" not in info
     # ZO oracle exposes value (1) but not grad -> obs dim = d + 1
     assert env.observation_space.shape == (env.dim + 1,)
 
@@ -57,11 +58,11 @@ def test_episode_runs_and_truncates():
     assert steps == env.T
 
 
-def test_reward_non_positive():
-    env = _zo_env(reward="neg_regret")
+def test_reward_is_exactly_public_noisy_value():
+    env = _zo_env(reward="neg_value")
     env.reset(seed=0)
-    _, r, _, _, _ = env.step(env.action_space.sample())
-    assert r <= 1e-9  # -regret, regret >= 0
+    obs, r, _, _, _ = env.step(env.action_space.sample())
+    assert r == -float(obs[env.dim])
 
 
 def test_delta_action_mode():
@@ -97,7 +98,7 @@ def test_simplex_actions_remain_feasible(action_mode):
         T=5,
         action_mode=action_mode,
         x0=np.array([-2.0, 0.0, 1.0, 4.0]),
-        reward="neg_error",
+        reward="neg_value",
     )
 
     obs, info = wrapper.reset(seed=0)
@@ -112,11 +113,11 @@ def test_simplex_actions_remain_feasible(action_mode):
         x = obs[:dim]
         assert np.all(x >= -1e-7)
         assert np.isclose(np.sum(x), 1.0, atol=1e-7)
-        assert np.isclose(reward, -np.linalg.norm(x - info["theta"]), atol=1e-6)
+        assert reward == -float(obs[dim])
         assert info["constraint_violation"] < 1e-7
 
 
-def _stiefel_env(action_mode="absolute", reward="neg_regret"):
+def _stiefel_env(action_mode="absolute", reward="zero", evaluation_session=None):
     d, r = 4, 2
     dim = d * r
     theta0 = StiefelLandscape.random_point(d, r, seed=20)
@@ -136,6 +137,7 @@ def _stiefel_env(action_mode="absolute", reward="neg_regret"):
         reward=reward,
         x0=x0,
         max_step=0.2,
+        evaluation_session=evaluation_session,
     )
     return wrapper, d, r
 
@@ -156,17 +158,23 @@ def test_stiefel_actions_remain_orthonormal(action_mode):
         assert info["constraint_violation"] < 1e-7
 
 
-def test_stiefel_negative_error_uses_frame_frobenius_distance():
-    wrapper, d, r = _stiefel_env(action_mode="absolute", reward="neg_error")
+def test_stiefel_evaluation_uses_frame_frobenius_distance():
+    session = GymEvaluationSession()
+    wrapper, d, r = _stiefel_env(evaluation_session=session)
     wrapper.reset(seed=0)
     raw_action = np.arange(1, d * r + 1, dtype=float)
     obs, reward, _, _, info = wrapper.step(raw_action)
     X = obs[: d * r].reshape(d, r)
-    Theta = info["theta"].reshape(d, r)
-    assert np.isclose(reward, -np.linalg.norm(X - Theta, ord="fro"), atol=1e-6)
+    for _ in range(wrapper.T - 1):
+        wrapper.step(np.zeros(d * r))
+    session.finish()
+    record = session.records[0][1]
+    Theta = record.evaluation.theta.reshape(d, r)
+    assert reward == 0.0
+    assert np.isclose(record.error, np.linalg.norm(X - Theta, ord="fro"), atol=1e-6)
 
 
-def _grassmann_env(action_mode="absolute", reward="neg_error"):
+def _grassmann_env(action_mode="absolute", reward="zero", evaluation_session=None):
     d, r = 4, 2
     dim = d * r
     theta0 = GrassmannLandscape.random_point(d, r, seed=50)
@@ -186,13 +194,15 @@ def _grassmann_env(action_mode="absolute", reward="neg_error"):
         reward=reward,
         x0=x0,
         max_step=0.2,
+        evaluation_session=evaluation_session,
     )
     return wrapper, d, r
 
 
 @pytest.mark.parametrize("action_mode", ["absolute", "delta"])
 def test_grassmann_actions_remain_orthonormal_and_use_subspace_error(action_mode):
-    wrapper, d, r = _grassmann_env(action_mode=action_mode)
+    session = GymEvaluationSession()
+    wrapper, d, r = _grassmann_env(action_mode=action_mode, evaluation_session=session)
     obs, info = wrapper.reset(seed=0)
     assert wrapper.geometry == "grassmann"
     assert info["constraint_violation"] < 1e-7
@@ -200,19 +210,28 @@ def test_grassmann_actions_remain_orthonormal_and_use_subspace_error(action_mode
     raw_action = np.arange(1, d * r + 1, dtype=float)
     obs, reward, _, _, info = wrapper.step(raw_action)
     X = obs[: d * r].reshape(d, r)
-    Theta = info["theta"].reshape(d, r)
+    for _ in range(wrapper.T - 1):
+        wrapper.step(np.zeros(d * r))
+    session.finish()
+    record = session.records[0][1]
+    Theta = record.evaluation.theta.reshape(d, r)
     assert np.allclose(X.T @ X, np.eye(r), atol=1e-7)
-    assert np.isclose(reward, -principal_angle_distance(X, Theta), atol=1e-6)
+    assert reward == 0.0
+    assert np.isclose(record.error, principal_angle_distance(X, Theta), atol=1e-6)
     assert info["constraint_violation"] < 1e-7
 
 
-def test_grassmann_reward_does_not_penalize_an_equivalent_basis():
-    wrapper, d, r = _grassmann_env(action_mode="absolute", reward="neg_error")
-    _, info = wrapper.reset(seed=0)
-    Theta = info["theta"].reshape(d, r)
+def test_grassmann_evaluation_does_not_penalize_an_equivalent_basis():
+    session = GymEvaluationSession()
+    wrapper, d, r = _grassmann_env(evaluation_session=session)
+    wrapper.reset(seed=0)
+    Theta = GrassmannLandscape.random_point(d, r, seed=50).reshape(d, r)
     Q = np.array([[0.0, -1.0], [1.0, 0.0]])
     _, reward, _, _, _ = wrapper.step((Theta @ Q).reshape(-1))
-    assert abs(reward) < 1e-7
+    for _ in range(wrapper.T - 1):
+        wrapper.step(np.zeros(d * r))
+    session.finish()
+    assert session.records[0][1].error < 1e-7
 
 
 def test_constrained_factory_initializes_feasible_latent_states():
@@ -272,7 +291,7 @@ def test_first_order_obs_includes_grad():
         landscape=QuadraticLandscape(dim=2, condition_number=2.0, seed=2),
     )
     oracle = FirstOrderOracle(env, grad_noise=GaussianNoise(sigma=0.01, seed=5))
-    wenv = WindGymEnv(env, oracle=oracle, T=10)
+    wenv = WindGymEnv(env, oracle=oracle, T=10, reward="zero")
     # FO (blind by default): value=None, grad present -> obs dim = d + d
     assert wenv.observation_space.shape == (2 * env.dim,)
     obs, _ = wenv.reset(seed=0)
@@ -284,11 +303,11 @@ def test_episodes_reproducible_after_reset():
 
     def rollout():
         env.reset(seed=0)
-        thetas = []
+        observations = []
         for _ in range(env.T):
-            _, _, _, _, info = env.step(np.zeros(env.dim))  # fixed action
-            thetas.append(info["theta"].copy())
-        return np.array(thetas)
+            obs, _, _, _, _ = env.step(np.zeros(env.dim))
+            observations.append(obs)
+        return np.array(observations)
 
     assert np.allclose(rollout(), rollout())
 

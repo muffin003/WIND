@@ -1,0 +1,1882 @@
+{
+  "package_version": "0.7.0",
+  "catalog": "catalog_v2",
+  "builds": {
+    "canonical-paper": {
+      "python": "3.12.14",
+      "platform": "Windows x86-64",
+      "source": {
+        "__init__.py": {
+          "sha256_original": "8a3951dc30d0a57d294acd8f2567d3b369b249fd2771654595a67150b418d620",
+          "sha256_lf": "8a3951dc30d0a57d294acd8f2567d3b369b249fd2771654595a67150b418d620",
+          "line_endings": "LF",
+          "override": false
+        },
+        "__main__.py": {
+          "sha256_original": "7ad45a052b8ea4b737e36b0b3934250b6c85915b2666223602b543cf221e6d46",
+          "sha256_lf": "7ad45a052b8ea4b737e36b0b3934250b6c85915b2666223602b543cf221e6d46",
+          "line_endings": "LF",
+          "override": false
+        },
+        "algorithms/__init__.py": {
+          "sha256_original": "4484cf453124f219363a29095dc53ec41bc34f8fbc8fb0014fcd031a7a0371b8",
+          "sha256_lf": "4484cf453124f219363a29095dc53ec41bc34f8fbc8fb0014fcd031a7a0371b8",
+          "line_endings": "LF",
+          "override": false
+        },
+        "algorithms/catalog.py": {
+          "sha256_original": "c4c41cf6557c9bb697e67017607742c013157546f6a822a0c0a5287891bbde5c",
+          "sha256_lf": "c4c41cf6557c9bb697e67017607742c013157546f6a822a0c0a5287891bbde5c",
+          "line_endings": "LF",
+          "override": false
+        },
+        "algorithms/optimizers.py": {
+          "sha256_original": "d4548e03eab72b81d5db436a1eb444416bc56db3290840ad3b718c8a02cdbe79",
+          "sha256_lf": "d4548e03eab72b81d5db436a1eb444416bc56db3290840ad3b718c8a02cdbe79",
+          "line_endings": "LF",
+          "override": false
+        },
+        "algorithms/protocol.py": {
+          "sha256_original": "7972d1bc3aae0ffe61472717e05ea3576af7232f91290f9c1a1c690f7328fe1c",
+          "sha256_lf": "7972d1bc3aae0ffe61472717e05ea3576af7232f91290f9c1a1c690f7328fe1c",
+          "line_endings": "LF",
+          "override": false
+        },
+        "core/__init__.py": {
+          "sha256_original": "d60bb8e3da51b95edda264b1393563311c48944996202c108d48d5ffe680972f",
+          "sha256_lf": "d60bb8e3da51b95edda264b1393563311c48944996202c108d48d5ffe680972f",
+          "line_endings": "LF",
+          "override": false
+        },
+        "core/environment.py": {
+          "sha256_original": "691d1c9c8ddd025459729323fddcbebd0d72fba2949dbf7751ea67dc894da5bd",
+          "sha256_lf": "355b5c610b2ee4c41ad6488f23bb3b1d2f243e6de71eb588ce0d000114b667a3",
+          "line_endings": "CRLF",
+          "override": false
+        },
+        "core/execution.py": {
+          "sha256_original": "0ab229a1ed139e0a7b259acd5f6bc8fe650852259d25a864690f580a66c5a942",
+          "sha256_lf": "0ab229a1ed139e0a7b259acd5f6bc8fe650852259d25a864690f580a66c5a942",
+          "line_endings": "LF",
+          "override": false
+        },
+        "core/geometry.py": {
+          "sha256_original": "d336e6c467b5ca1987c968a97fcfcf63d3866b8c3764aa0cef801da63f313d11",
+          "sha256_lf": "d336e6c467b5ca1987c968a97fcfcf63d3866b8c3764aa0cef801da63f313d11",
+          "line_endings": "LF",
+          "override": false
+        },
+        "core/metrics.py": {
+          "sha256_original": "b4ea8abbe70881be4c9bfc54f594e4eabebe394eb9d139353e275ebf32e03a03",
+          "sha256_lf": "84dd6f43d0cbe20d2cc4e37a4085544a4cc0c30d4e7b996ac24754f87743ecf8",
+          "line_endings": "CRLF",
+          "override": true
+        },
+        "core/oracle.py": {
+          "sha256_original": "9d00e2723e9487e9d9dcd926c6df27fce2b4b068a1381e6a5fec39ae200b27e8",
+          "sha256_lf": "70ddca14f62304e6e4c09ec71aecf04b62198638766660e9c16c8a0bfa73b840",
+          "line_endings": "CRLF",
+          "override": false
+        },
+        "core/privacy.py": {
+          "sha256_original": "abd97209beea13e30f9246137a360e9f647d98021f0c8afecfe033c8453649f4",
+          "sha256_lf": "abd97209beea13e30f9246137a360e9f647d98021f0c8afecfe033c8453649f4",
+          "line_endings": "LF",
+          "override": false
+        },
+        "core/randomness.py": {
+          "sha256_original": "fe548c0ebc85f66261c044fc09e3f7f050000dd009632ff16b40427178517b53",
+          "sha256_lf": "fe548c0ebc85f66261c044fc09e3f7f050000dd009632ff16b40427178517b53",
+          "line_endings": "LF",
+          "override": false
+        },
+        "core/resources.py": {
+          "sha256_original": "c50332adcaae5b91ad07d4f184ee0da002a4fa9588e13930c11c277168e5fb43",
+          "sha256_lf": "c50332adcaae5b91ad07d4f184ee0da002a4fa9588e13930c11c277168e5fb43",
+          "line_endings": "LF",
+          "override": false
+        },
+        "core/runner.py": {
+          "sha256_original": "a23a586db7eb992b9632ddf446138c16c0d494b6a390916465ecf2995768b7b3",
+          "sha256_lf": "a9ab01628f78e2e1713107c83eb34d0a4ae2dca2fb210ac3c94c8fd17c100913",
+          "line_endings": "CRLF",
+          "override": false
+        },
+        "core/serialization.py": {
+          "sha256_original": "83097c514b11c7c4de103ec683ab43dad904a972bd0fc150c0d38721e8aff52b",
+          "sha256_lf": "83097c514b11c7c4de103ec683ab43dad904a972bd0fc150c0d38721e8aff52b",
+          "line_endings": "LF",
+          "override": false
+        },
+        "experiments/__init__.py": {
+          "sha256_original": "384b1673c6ab0de4a08f944032cb148d83165bef003898f64fafb50059456828",
+          "sha256_lf": "384b1673c6ab0de4a08f944032cb148d83165bef003898f64fafb50059456828",
+          "line_endings": "LF",
+          "override": false
+        },
+        "experiments/canonical.py": {
+          "sha256_original": "188ef89f02ff866dc1aaf7c39f647a4454fd934527afc01f9554c45091f16f78",
+          "sha256_lf": "188ef89f02ff866dc1aaf7c39f647a4454fd934527afc01f9554c45091f16f78",
+          "line_endings": "LF",
+          "override": false
+        },
+        "experiments/configurable.py": {
+          "sha256_original": "4db811ead091b968d8857a2d60f7b5f5cc4adff3623b9c7ced52a28012ae505e",
+          "sha256_lf": "3977ebfeca65b60e67c0faa1f24db0d64e224dde6f81fde40d15b21cf8d22185",
+          "line_endings": "CRLF",
+          "override": false
+        },
+        "experiments/controls.py": {
+          "sha256_original": "a58e1d819e24b47cc2e06042c71504b76b6f6ce45a24a94af41a8f6805a95f0f",
+          "sha256_lf": "a58e1d819e24b47cc2e06042c71504b76b6f6ce45a24a94af41a8f6805a95f0f",
+          "line_endings": "LF",
+          "override": false
+        },
+        "experiments/paper.py": {
+          "sha256_original": "074ec71c53f3213ae2cd7fc9b99ea6b0150168eff8fb5d07bf62489787bb2c67",
+          "sha256_lf": "074ec71c53f3213ae2cd7fc9b99ea6b0150168eff8fb5d07bf62489787bb2c67",
+          "line_endings": "LF",
+          "override": false
+        },
+        "experiments/parallel.py": {
+          "sha256_original": "2535e28821abdf927e6f13341e7d16a8e664e27e82e44e6e79aefc2823c5c697",
+          "sha256_lf": "2535e28821abdf927e6f13341e7d16a8e664e27e82e44e6e79aefc2823c5c697",
+          "line_endings": "LF",
+          "override": true
+        },
+        "experiments/rl.py": {
+          "sha256_original": "fb2a78a9b2a867ef83009bdf6ef4d17264d704ddc0c902dcc5e120367b74bd8a",
+          "sha256_lf": "fb2a78a9b2a867ef83009bdf6ef4d17264d704ddc0c902dcc5e120367b74bd8a",
+          "line_endings": "LF",
+          "override": true
+        },
+        "experiments/standard.py": {
+          "sha256_original": "7bba964bad2f1ccf95b5d0e38aaa2c608a9d2b47913bc5fa12ea472daa47fefc",
+          "sha256_lf": "7bba964bad2f1ccf95b5d0e38aaa2c608a9d2b47913bc5fa12ea472daa47fefc",
+          "line_endings": "LF",
+          "override": false
+        },
+        "integrations/__init__.py": {
+          "sha256_original": "68ed9c80ae3f585a2b7ca2c35e46ced4c31a6a389a2bb0f3f299633b418a86bf",
+          "sha256_lf": "68ed9c80ae3f585a2b7ca2c35e46ced4c31a6a389a2bb0f3f299633b418a86bf",
+          "line_endings": "LF",
+          "override": false
+        },
+        "integrations/gym_env.py": {
+          "sha256_original": "4f3c9572145f25059a45a92db069dc97844880207f968507958f17d3ebace0e9",
+          "sha256_lf": "4f3c9572145f25059a45a92db069dc97844880207f968507958f17d3ebace0e9",
+          "line_endings": "LF",
+          "override": false
+        },
+        "integrations/gym_evaluation.py": {
+          "sha256_original": "cc9ad9423d6d7fefc8ebac3f7c1a756bc6ce28c57f161c5aaef0812415d10e4e",
+          "sha256_lf": "cc9ad9423d6d7fefc8ebac3f7c1a756bc6ce28c57f161c5aaef0812415d10e4e",
+          "line_endings": "LF",
+          "override": false
+        },
+        "integrations/rl_env.py": {
+          "sha256_original": "bb2761a041edad85a8ae4b4e7f19c5eb2784a254c8735a7d06c009ce85dcf69f",
+          "sha256_lf": "bb2761a041edad85a8ae4b4e7f19c5eb2784a254c8735a7d06c009ce85dcf69f",
+          "line_endings": "LF",
+          "override": true
+        },
+        "interfaces/__init__.py": {
+          "sha256_original": "4e2dbb566c189b65bd5ee89d69a79d9f61d09c25f6b995718bd91bacab1eea1b",
+          "sha256_lf": "4e2dbb566c189b65bd5ee89d69a79d9f61d09c25f6b995718bd91bacab1eea1b",
+          "line_endings": "LF",
+          "override": false
+        },
+        "interfaces/cli.py": {
+          "sha256_original": "65f4c3f5146f2a4595973397a1e9a7f8883203bb5d11484c458e09334e581e0d",
+          "sha256_lf": "65f4c3f5146f2a4595973397a1e9a7f8883203bb5d11484c458e09334e581e0d",
+          "line_endings": "LF",
+          "override": false
+        },
+        "interfaces/web.py": {
+          "sha256_original": "5164e6db97081fdb55673bc85f79858fd335d1742a0babd987b4c9e1f78a1f70",
+          "sha256_lf": "5164e6db97081fdb55673bc85f79858fd335d1742a0babd987b4c9e1f78a1f70",
+          "line_endings": "LF",
+          "override": false
+        },
+        "interfaces/web_runner.py": {
+          "sha256_original": "8e0459cc6cc19d0e2510affbe8562a908d1eead2074a09da797a89f81a36ce07",
+          "sha256_lf": "8e0459cc6cc19d0e2510affbe8562a908d1eead2074a09da797a89f81a36ce07",
+          "line_endings": "LF",
+          "override": false
+        },
+        "reporting/__init__.py": {
+          "sha256_original": "fba2d4e8a06e815c3cc107ecd6268317c70f6c477549adc8901256dd0c004a8d",
+          "sha256_lf": "fba2d4e8a06e815c3cc107ecd6268317c70f6c477549adc8901256dd0c004a8d",
+          "line_endings": "LF",
+          "override": false
+        },
+        "reporting/common.py": {
+          "sha256_original": "d7f63d393fe453e94be67ff83cb267b3e008d20020be907f48afde7231ad299d",
+          "sha256_lf": "d7f63d393fe453e94be67ff83cb267b3e008d20020be907f48afde7231ad299d",
+          "line_endings": "LF",
+          "override": false
+        },
+        "reporting/interactive.py": {
+          "sha256_original": "0821e20a10b546d37b1d30135ae463788728b7db7f239902b37be1690bbd91f6",
+          "sha256_lf": "b0c60ec79346677f4e772bfc8a43747c641c794a328d9273fc6e6b66d2f3dd04",
+          "line_endings": "CRLF",
+          "override": false
+        },
+        "reporting/standard.py": {
+          "sha256_original": "c87d42e55853b413d7caaaf5dfb30a8006955d15ec2ac8d2cb7eea9ddeead682",
+          "sha256_lf": "c87d42e55853b413d7caaaf5dfb30a8006955d15ec2ac8d2cb7eea9ddeead682",
+          "line_endings": "LF",
+          "override": false
+        }
+      },
+      "original_wheel_sha256": "b2bf50891793f682b91f984b80443da62ff7b3ea100fdf56eb2922b0dc4f56b8"
+    },
+    "rl": {
+      "python": "3.12.14",
+      "platform": "Windows x86-64",
+      "source": {
+        "__init__.py": {
+          "sha256_original": "8a3951dc30d0a57d294acd8f2567d3b369b249fd2771654595a67150b418d620",
+          "sha256_lf": "8a3951dc30d0a57d294acd8f2567d3b369b249fd2771654595a67150b418d620",
+          "line_endings": "LF",
+          "override": false
+        },
+        "__main__.py": {
+          "sha256_original": "7ad45a052b8ea4b737e36b0b3934250b6c85915b2666223602b543cf221e6d46",
+          "sha256_lf": "7ad45a052b8ea4b737e36b0b3934250b6c85915b2666223602b543cf221e6d46",
+          "line_endings": "LF",
+          "override": false
+        },
+        "algorithms/__init__.py": {
+          "sha256_original": "4484cf453124f219363a29095dc53ec41bc34f8fbc8fb0014fcd031a7a0371b8",
+          "sha256_lf": "4484cf453124f219363a29095dc53ec41bc34f8fbc8fb0014fcd031a7a0371b8",
+          "line_endings": "LF",
+          "override": false
+        },
+        "algorithms/catalog.py": {
+          "sha256_original": "c4c41cf6557c9bb697e67017607742c013157546f6a822a0c0a5287891bbde5c",
+          "sha256_lf": "c4c41cf6557c9bb697e67017607742c013157546f6a822a0c0a5287891bbde5c",
+          "line_endings": "LF",
+          "override": false
+        },
+        "algorithms/optimizers.py": {
+          "sha256_original": "d4548e03eab72b81d5db436a1eb444416bc56db3290840ad3b718c8a02cdbe79",
+          "sha256_lf": "d4548e03eab72b81d5db436a1eb444416bc56db3290840ad3b718c8a02cdbe79",
+          "line_endings": "LF",
+          "override": false
+        },
+        "algorithms/protocol.py": {
+          "sha256_original": "7972d1bc3aae0ffe61472717e05ea3576af7232f91290f9c1a1c690f7328fe1c",
+          "sha256_lf": "7972d1bc3aae0ffe61472717e05ea3576af7232f91290f9c1a1c690f7328fe1c",
+          "line_endings": "LF",
+          "override": false
+        },
+        "core/__init__.py": {
+          "sha256_original": "d60bb8e3da51b95edda264b1393563311c48944996202c108d48d5ffe680972f",
+          "sha256_lf": "d60bb8e3da51b95edda264b1393563311c48944996202c108d48d5ffe680972f",
+          "line_endings": "LF",
+          "override": false
+        },
+        "core/environment.py": {
+          "sha256_original": "691d1c9c8ddd025459729323fddcbebd0d72fba2949dbf7751ea67dc894da5bd",
+          "sha256_lf": "355b5c610b2ee4c41ad6488f23bb3b1d2f243e6de71eb588ce0d000114b667a3",
+          "line_endings": "CRLF",
+          "override": false
+        },
+        "core/execution.py": {
+          "sha256_original": "0ab229a1ed139e0a7b259acd5f6bc8fe650852259d25a864690f580a66c5a942",
+          "sha256_lf": "0ab229a1ed139e0a7b259acd5f6bc8fe650852259d25a864690f580a66c5a942",
+          "line_endings": "LF",
+          "override": false
+        },
+        "core/geometry.py": {
+          "sha256_original": "d336e6c467b5ca1987c968a97fcfcf63d3866b8c3764aa0cef801da63f313d11",
+          "sha256_lf": "d336e6c467b5ca1987c968a97fcfcf63d3866b8c3764aa0cef801da63f313d11",
+          "line_endings": "LF",
+          "override": false
+        },
+        "core/metrics.py": {
+          "sha256_original": "1e7d8d584922b70abed9344b5fe65976f035d7cad2f997fe2a20a591414b42f9",
+          "sha256_lf": "ea4c0afbb15734bec6d816b1543e0451cc5314cf844e6a288f6cad621b8f3c46",
+          "line_endings": "CRLF",
+          "override": false
+        },
+        "core/oracle.py": {
+          "sha256_original": "9d00e2723e9487e9d9dcd926c6df27fce2b4b068a1381e6a5fec39ae200b27e8",
+          "sha256_lf": "70ddca14f62304e6e4c09ec71aecf04b62198638766660e9c16c8a0bfa73b840",
+          "line_endings": "CRLF",
+          "override": false
+        },
+        "core/privacy.py": {
+          "sha256_original": "abd97209beea13e30f9246137a360e9f647d98021f0c8afecfe033c8453649f4",
+          "sha256_lf": "abd97209beea13e30f9246137a360e9f647d98021f0c8afecfe033c8453649f4",
+          "line_endings": "LF",
+          "override": false
+        },
+        "core/randomness.py": {
+          "sha256_original": "fe548c0ebc85f66261c044fc09e3f7f050000dd009632ff16b40427178517b53",
+          "sha256_lf": "fe548c0ebc85f66261c044fc09e3f7f050000dd009632ff16b40427178517b53",
+          "line_endings": "LF",
+          "override": false
+        },
+        "core/resources.py": {
+          "sha256_original": "c50332adcaae5b91ad07d4f184ee0da002a4fa9588e13930c11c277168e5fb43",
+          "sha256_lf": "c50332adcaae5b91ad07d4f184ee0da002a4fa9588e13930c11c277168e5fb43",
+          "line_endings": "LF",
+          "override": false
+        },
+        "core/runner.py": {
+          "sha256_original": "a23a586db7eb992b9632ddf446138c16c0d494b6a390916465ecf2995768b7b3",
+          "sha256_lf": "a9ab01628f78e2e1713107c83eb34d0a4ae2dca2fb210ac3c94c8fd17c100913",
+          "line_endings": "CRLF",
+          "override": false
+        },
+        "core/serialization.py": {
+          "sha256_original": "83097c514b11c7c4de103ec683ab43dad904a972bd0fc150c0d38721e8aff52b",
+          "sha256_lf": "83097c514b11c7c4de103ec683ab43dad904a972bd0fc150c0d38721e8aff52b",
+          "line_endings": "LF",
+          "override": false
+        },
+        "experiments/__init__.py": {
+          "sha256_original": "384b1673c6ab0de4a08f944032cb148d83165bef003898f64fafb50059456828",
+          "sha256_lf": "384b1673c6ab0de4a08f944032cb148d83165bef003898f64fafb50059456828",
+          "line_endings": "LF",
+          "override": false
+        },
+        "experiments/canonical.py": {
+          "sha256_original": "188ef89f02ff866dc1aaf7c39f647a4454fd934527afc01f9554c45091f16f78",
+          "sha256_lf": "188ef89f02ff866dc1aaf7c39f647a4454fd934527afc01f9554c45091f16f78",
+          "line_endings": "LF",
+          "override": false
+        },
+        "experiments/configurable.py": {
+          "sha256_original": "4db811ead091b968d8857a2d60f7b5f5cc4adff3623b9c7ced52a28012ae505e",
+          "sha256_lf": "3977ebfeca65b60e67c0faa1f24db0d64e224dde6f81fde40d15b21cf8d22185",
+          "line_endings": "CRLF",
+          "override": false
+        },
+        "experiments/controls.py": {
+          "sha256_original": "a58e1d819e24b47cc2e06042c71504b76b6f6ce45a24a94af41a8f6805a95f0f",
+          "sha256_lf": "a58e1d819e24b47cc2e06042c71504b76b6f6ce45a24a94af41a8f6805a95f0f",
+          "line_endings": "LF",
+          "override": false
+        },
+        "experiments/paper.py": {
+          "sha256_original": "074ec71c53f3213ae2cd7fc9b99ea6b0150168eff8fb5d07bf62489787bb2c67",
+          "sha256_lf": "074ec71c53f3213ae2cd7fc9b99ea6b0150168eff8fb5d07bf62489787bb2c67",
+          "line_endings": "LF",
+          "override": false
+        },
+        "experiments/parallel.py": {
+          "sha256_original": "cfec0dc615f2577f0eae01be8e93de0ac5548df13ecbf159631a3a1ce16637b7",
+          "sha256_lf": "cfec0dc615f2577f0eae01be8e93de0ac5548df13ecbf159631a3a1ce16637b7",
+          "line_endings": "LF",
+          "override": false
+        },
+        "experiments/rl.py": {
+          "sha256_original": "dabf6fb00837ba6dd1bcbb47c346a5397aa32a928cebfc7bb993cf24b582c06d",
+          "sha256_lf": "dabf6fb00837ba6dd1bcbb47c346a5397aa32a928cebfc7bb993cf24b582c06d",
+          "line_endings": "LF",
+          "override": false
+        },
+        "experiments/standard.py": {
+          "sha256_original": "7bba964bad2f1ccf95b5d0e38aaa2c608a9d2b47913bc5fa12ea472daa47fefc",
+          "sha256_lf": "7bba964bad2f1ccf95b5d0e38aaa2c608a9d2b47913bc5fa12ea472daa47fefc",
+          "line_endings": "LF",
+          "override": false
+        },
+        "integrations/__init__.py": {
+          "sha256_original": "68ed9c80ae3f585a2b7ca2c35e46ced4c31a6a389a2bb0f3f299633b418a86bf",
+          "sha256_lf": "68ed9c80ae3f585a2b7ca2c35e46ced4c31a6a389a2bb0f3f299633b418a86bf",
+          "line_endings": "LF",
+          "override": false
+        },
+        "integrations/gym_env.py": {
+          "sha256_original": "4f3c9572145f25059a45a92db069dc97844880207f968507958f17d3ebace0e9",
+          "sha256_lf": "4f3c9572145f25059a45a92db069dc97844880207f968507958f17d3ebace0e9",
+          "line_endings": "LF",
+          "override": false
+        },
+        "integrations/gym_evaluation.py": {
+          "sha256_original": "cc9ad9423d6d7fefc8ebac3f7c1a756bc6ce28c57f161c5aaef0812415d10e4e",
+          "sha256_lf": "cc9ad9423d6d7fefc8ebac3f7c1a756bc6ce28c57f161c5aaef0812415d10e4e",
+          "line_endings": "LF",
+          "override": false
+        },
+        "integrations/rl_env.py": {
+          "sha256_original": "17c2a2041e80267359f1aede303f301d6082a72e433872d5d2f131449de94492",
+          "sha256_lf": "17c2a2041e80267359f1aede303f301d6082a72e433872d5d2f131449de94492",
+          "line_endings": "LF",
+          "override": false
+        },
+        "interfaces/__init__.py": {
+          "sha256_original": "4e2dbb566c189b65bd5ee89d69a79d9f61d09c25f6b995718bd91bacab1eea1b",
+          "sha256_lf": "4e2dbb566c189b65bd5ee89d69a79d9f61d09c25f6b995718bd91bacab1eea1b",
+          "line_endings": "LF",
+          "override": false
+        },
+        "interfaces/cli.py": {
+          "sha256_original": "65f4c3f5146f2a4595973397a1e9a7f8883203bb5d11484c458e09334e581e0d",
+          "sha256_lf": "65f4c3f5146f2a4595973397a1e9a7f8883203bb5d11484c458e09334e581e0d",
+          "line_endings": "LF",
+          "override": false
+        },
+        "interfaces/web.py": {
+          "sha256_original": "5164e6db97081fdb55673bc85f79858fd335d1742a0babd987b4c9e1f78a1f70",
+          "sha256_lf": "5164e6db97081fdb55673bc85f79858fd335d1742a0babd987b4c9e1f78a1f70",
+          "line_endings": "LF",
+          "override": false
+        },
+        "interfaces/web_runner.py": {
+          "sha256_original": "8e0459cc6cc19d0e2510affbe8562a908d1eead2074a09da797a89f81a36ce07",
+          "sha256_lf": "8e0459cc6cc19d0e2510affbe8562a908d1eead2074a09da797a89f81a36ce07",
+          "line_endings": "LF",
+          "override": false
+        },
+        "reporting/__init__.py": {
+          "sha256_original": "fba2d4e8a06e815c3cc107ecd6268317c70f6c477549adc8901256dd0c004a8d",
+          "sha256_lf": "fba2d4e8a06e815c3cc107ecd6268317c70f6c477549adc8901256dd0c004a8d",
+          "line_endings": "LF",
+          "override": false
+        },
+        "reporting/common.py": {
+          "sha256_original": "d7f63d393fe453e94be67ff83cb267b3e008d20020be907f48afde7231ad299d",
+          "sha256_lf": "d7f63d393fe453e94be67ff83cb267b3e008d20020be907f48afde7231ad299d",
+          "line_endings": "LF",
+          "override": false
+        },
+        "reporting/interactive.py": {
+          "sha256_original": "0821e20a10b546d37b1d30135ae463788728b7db7f239902b37be1690bbd91f6",
+          "sha256_lf": "b0c60ec79346677f4e772bfc8a43747c641c794a328d9273fc6e6b66d2f3dd04",
+          "line_endings": "CRLF",
+          "override": false
+        },
+        "reporting/standard.py": {
+          "sha256_original": "c87d42e55853b413d7caaaf5dfb30a8006955d15ec2ac8d2cb7eea9ddeead682",
+          "sha256_lf": "c87d42e55853b413d7caaaf5dfb30a8006955d15ec2ac8d2cb7eea9ddeead682",
+          "line_endings": "LF",
+          "override": false
+        }
+      },
+      "original_wheel_sha256": "f384ed3f282f6fd26ae44a05d4d7522cf935e880c7beb0b7b330e59ac8dac736"
+    }
+  },
+  "canonical": {
+    "suite": "wind_tracking_v1",
+    "specification": {
+      "suite": "wind_tracking_v1",
+      "schema_version": 3,
+      "generator": "wind_tracking_v1.haar_qr_signs.sphere_zero_start",
+      "task_parameters": {
+        "quadratic_eigenvalues": "linear spacing from 1 to kappa; random orthogonal basis",
+        "pnorm": {
+          "p": 1.5
+        },
+        "multiextremal": {
+          "width": 1.0
+        },
+        "gaussian": {
+          "value_sigma": 0.1,
+          "gradient_sigma": ".1/sqrt(flattened_dimension)"
+        },
+        "correlated": {
+          "phi": 0.9,
+          "sigma": "Gaussian baseline scale",
+          "initial": 0,
+          "innovations": "Gaussian"
+        },
+        "heavy_tailed": {
+          "alpha": 1.5,
+          "scale": "Gaussian baseline scale",
+          "clip": "1000*scale"
+        },
+        "sparse": {
+          "p": 0.05,
+          "sigma": "Gaussian baseline scale/sqrt(.05)"
+        },
+        "multiplicative": {
+          "sigma_rel": 0.3
+        },
+        "quantized": {
+          "delta": "Gaussian baseline scale"
+        },
+        "linear": {
+          "speed": 0.005
+        },
+        "random_walk": {
+          "coordinate_sigma": ".005/sqrt(d)"
+        },
+        "cyclic": {
+          "amplitude_per_coordinate": "1/sqrt(d)",
+          "period": 1000,
+          "center": "theta0"
+        },
+        "jump": {
+          "interval": 800,
+          "magnitude": 1.0
+        },
+        "simplex_cycle": {
+          "period": 1000,
+          "formula": "theta0_i*exp(sin(2*pi*t/P+i)-sin(i)), normalized"
+        },
+        "stiefel": {
+          "sigma": 0.005,
+          "map": "Cayley skew Gaussian left rotation"
+        }
+      },
+      "tasks": [
+        {
+          "name": "clean",
+          "stage": "reference",
+          "landscape": "quadratic",
+          "noise": "none",
+          "drift": "stationary",
+          "dim": 10,
+          "kappa": 1.0,
+          "geometry": "euclidean",
+          "rank": 2
+        },
+        {
+          "name": "gaussian",
+          "stage": "reference",
+          "landscape": "quadratic",
+          "noise": "gaussian",
+          "drift": "stationary",
+          "dim": 10,
+          "kappa": 1.0,
+          "geometry": "euclidean",
+          "rank": 2
+        },
+        {
+          "name": "conditioned_none",
+          "stage": "landscape",
+          "landscape": "quadratic",
+          "noise": "none",
+          "drift": "stationary",
+          "dim": 10,
+          "kappa": 100,
+          "geometry": "euclidean",
+          "rank": 2
+        },
+        {
+          "name": "pnorm_none",
+          "stage": "landscape",
+          "landscape": "pnorm",
+          "noise": "none",
+          "drift": "stationary",
+          "dim": 10,
+          "kappa": 1.0,
+          "geometry": "euclidean",
+          "rank": 2
+        },
+        {
+          "name": "rosenbrock_none",
+          "stage": "landscape",
+          "landscape": "rosenbrock",
+          "noise": "none",
+          "drift": "stationary",
+          "dim": 10,
+          "kappa": 1.0,
+          "geometry": "euclidean",
+          "rank": 2
+        },
+        {
+          "name": "multimodal_none",
+          "stage": "landscape",
+          "landscape": "multiextremal",
+          "noise": "none",
+          "drift": "stationary",
+          "dim": 10,
+          "kappa": 1.0,
+          "geometry": "euclidean",
+          "rank": 2
+        },
+        {
+          "name": "conditioned_gaussian",
+          "stage": "landscape",
+          "landscape": "quadratic",
+          "noise": "gaussian",
+          "drift": "stationary",
+          "dim": 10,
+          "kappa": 100,
+          "geometry": "euclidean",
+          "rank": 2
+        },
+        {
+          "name": "pnorm_gaussian",
+          "stage": "landscape",
+          "landscape": "pnorm",
+          "noise": "gaussian",
+          "drift": "stationary",
+          "dim": 10,
+          "kappa": 1.0,
+          "geometry": "euclidean",
+          "rank": 2
+        },
+        {
+          "name": "rosenbrock_gaussian",
+          "stage": "landscape",
+          "landscape": "rosenbrock",
+          "noise": "gaussian",
+          "drift": "stationary",
+          "dim": 10,
+          "kappa": 1.0,
+          "geometry": "euclidean",
+          "rank": 2
+        },
+        {
+          "name": "multimodal_gaussian",
+          "stage": "landscape",
+          "landscape": "multiextremal",
+          "noise": "gaussian",
+          "drift": "stationary",
+          "dim": 10,
+          "kappa": 1.0,
+          "geometry": "euclidean",
+          "rank": 2
+        },
+        {
+          "name": "correlated",
+          "stage": "observation",
+          "landscape": "quadratic",
+          "noise": "correlated",
+          "drift": "stationary",
+          "dim": 10,
+          "kappa": 1.0,
+          "geometry": "euclidean",
+          "rank": 2
+        },
+        {
+          "name": "heavy_tailed",
+          "stage": "observation",
+          "landscape": "quadratic",
+          "noise": "heavy_tailed",
+          "drift": "stationary",
+          "dim": 10,
+          "kappa": 1.0,
+          "geometry": "euclidean",
+          "rank": 2
+        },
+        {
+          "name": "sparse",
+          "stage": "observation",
+          "landscape": "quadratic",
+          "noise": "sparse",
+          "drift": "stationary",
+          "dim": 10,
+          "kappa": 1.0,
+          "geometry": "euclidean",
+          "rank": 2
+        },
+        {
+          "name": "multiplicative",
+          "stage": "observation",
+          "landscape": "quadratic",
+          "noise": "multiplicative",
+          "drift": "stationary",
+          "dim": 10,
+          "kappa": 1.0,
+          "geometry": "euclidean",
+          "rank": 2
+        },
+        {
+          "name": "quantized",
+          "stage": "observation",
+          "landscape": "quadratic",
+          "noise": "quantized",
+          "drift": "stationary",
+          "dim": 10,
+          "kappa": 1.0,
+          "geometry": "euclidean",
+          "rank": 2
+        },
+        {
+          "name": "linear",
+          "stage": "dynamics",
+          "landscape": "quadratic",
+          "noise": "gaussian",
+          "drift": "linear",
+          "dim": 10,
+          "kappa": 1.0,
+          "geometry": "euclidean",
+          "rank": 2
+        },
+        {
+          "name": "random_walk",
+          "stage": "dynamics",
+          "landscape": "quadratic",
+          "noise": "gaussian",
+          "drift": "random_walk",
+          "dim": 10,
+          "kappa": 1.0,
+          "geometry": "euclidean",
+          "rank": 2
+        },
+        {
+          "name": "cyclic",
+          "stage": "dynamics",
+          "landscape": "quadratic",
+          "noise": "gaussian",
+          "drift": "cyclic",
+          "dim": 10,
+          "kappa": 1.0,
+          "geometry": "euclidean",
+          "rank": 2
+        },
+        {
+          "name": "jump",
+          "stage": "dynamics",
+          "landscape": "quadratic",
+          "noise": "gaussian",
+          "drift": "jump",
+          "dim": 10,
+          "kappa": 1.0,
+          "geometry": "euclidean",
+          "rank": 2
+        },
+        {
+          "name": "linear_correlated",
+          "stage": "interaction",
+          "landscape": "quadratic",
+          "noise": "correlated",
+          "drift": "linear",
+          "dim": 10,
+          "kappa": 1.0,
+          "geometry": "euclidean",
+          "rank": 2
+        },
+        {
+          "name": "jump_outliers",
+          "stage": "interaction",
+          "landscape": "quadratic",
+          "noise": "heavy_tailed",
+          "drift": "jump",
+          "dim": 10,
+          "kappa": 1.0,
+          "geometry": "euclidean",
+          "rank": 2
+        },
+        {
+          "name": "linear_d30",
+          "stage": "scaling",
+          "landscape": "quadratic",
+          "noise": "gaussian",
+          "drift": "linear",
+          "dim": 30,
+          "kappa": 1.0,
+          "geometry": "euclidean",
+          "rank": 2
+        },
+        {
+          "name": "linear_d100",
+          "stage": "scaling",
+          "landscape": "quadratic",
+          "noise": "gaussian",
+          "drift": "linear",
+          "dim": 100,
+          "kappa": 1.0,
+          "geometry": "euclidean",
+          "rank": 2
+        },
+        {
+          "name": "simplex_stationary_gaussian",
+          "stage": "geometry",
+          "landscape": "simplex",
+          "noise": "gaussian",
+          "drift": "stationary",
+          "dim": 6,
+          "kappa": 1.0,
+          "geometry": "simplex",
+          "rank": 2
+        },
+        {
+          "name": "simplex_moving_gaussian",
+          "stage": "geometry",
+          "landscape": "simplex",
+          "noise": "gaussian",
+          "drift": "simplex_cycle",
+          "dim": 6,
+          "kappa": 1.0,
+          "geometry": "simplex",
+          "rank": 2
+        },
+        {
+          "name": "simplex_moving_correlated",
+          "stage": "geometry",
+          "landscape": "simplex",
+          "noise": "correlated",
+          "drift": "simplex_cycle",
+          "dim": 6,
+          "kappa": 1.0,
+          "geometry": "simplex",
+          "rank": 2
+        },
+        {
+          "name": "stiefel_stationary_gaussian",
+          "stage": "geometry",
+          "landscape": "stiefel",
+          "noise": "gaussian",
+          "drift": "stationary",
+          "dim": 6,
+          "kappa": 1.0,
+          "geometry": "stiefel",
+          "rank": 2
+        },
+        {
+          "name": "stiefel_moving_gaussian",
+          "stage": "geometry",
+          "landscape": "stiefel",
+          "noise": "gaussian",
+          "drift": "stiefel",
+          "dim": 6,
+          "kappa": 1.0,
+          "geometry": "stiefel",
+          "rank": 2
+        },
+        {
+          "name": "stiefel_moving_correlated",
+          "stage": "geometry",
+          "landscape": "stiefel",
+          "noise": "correlated",
+          "drift": "stiefel",
+          "dim": 6,
+          "kappa": 1.0,
+          "geometry": "stiefel",
+          "rank": 2
+        },
+        {
+          "name": "grassmann_stationary_gaussian",
+          "stage": "geometry",
+          "landscape": "grassmann",
+          "noise": "gaussian",
+          "drift": "stationary",
+          "dim": 6,
+          "kappa": 1.0,
+          "geometry": "grassmann",
+          "rank": 2
+        },
+        {
+          "name": "grassmann_moving_gaussian",
+          "stage": "geometry",
+          "landscape": "grassmann",
+          "noise": "gaussian",
+          "drift": "stiefel",
+          "dim": 6,
+          "kappa": 1.0,
+          "geometry": "grassmann",
+          "rank": 2
+        },
+        {
+          "name": "grassmann_moving_correlated",
+          "stage": "geometry",
+          "landscape": "grassmann",
+          "noise": "correlated",
+          "drift": "stiefel",
+          "dim": 6,
+          "kappa": 1.0,
+          "geometry": "grassmann",
+          "rank": 2
+        }
+      ],
+      "development_seeds": [
+        20001,
+        20002,
+        20003,
+        20004,
+        20005,
+        20006,
+        20007,
+        20008,
+        20009,
+        20010,
+        20011,
+        20012,
+        20013,
+        20014,
+        20015,
+        20016,
+        20017,
+        20018,
+        20019,
+        20020
+      ],
+      "evaluation_seeds": [
+        10001,
+        10002,
+        10003,
+        10004,
+        10005,
+        10006,
+        10007,
+        10008,
+        10009,
+        10010,
+        10011,
+        10012,
+        10013,
+        10014,
+        10015,
+        10016,
+        10017,
+        10018,
+        10019,
+        10020,
+        10021,
+        10022,
+        10023,
+        10024,
+        10025,
+        10026,
+        10027,
+        10028,
+        10029,
+        10030,
+        10031,
+        10032,
+        10033,
+        10034,
+        10035,
+        10036,
+        10037,
+        10038,
+        10039,
+        10040,
+        10041,
+        10042,
+        10043,
+        10044,
+        10045,
+        10046,
+        10047,
+        10048,
+        10049,
+        10050
+      ],
+      "query_budget": 4000,
+      "decision_stream": "queried-point",
+      "clock": "streaming: one transition per oracle query",
+      "initialization": {
+        "euclidean": "x0=0; theta0 uniform on unit sphere",
+        "simplex": "independent Dirichlet(ones) feasible states",
+        "manifold": "Gaussian QR with positive R diagonal"
+      },
+      "primary": {
+        "stationary": "mean squared error over final 20% of queries",
+        "dynamic": "mean squared error over all queries"
+      },
+      "distance": {
+        "euclidean": "L2",
+        "simplex": "L2",
+        "stiefel": "frame Frobenius",
+        "grassmann": "L2 principal angles, feasible representatives only"
+      },
+      "query_efficiency": {
+        "epsilon": 0.1,
+        "include_initial_point": true,
+        "failure": "not a full-budget censored observation"
+      },
+      "recovery": {
+        "epsilon": 0.2,
+        "window": 400,
+        "consecutive": 20,
+        "time": "queries after change including confirmation"
+      },
+      "tuning": "fixed configuration / no in-suite tuning",
+      "bootstrap_repetitions": 10000,
+      "confidence": 0.95,
+      "failure_interval": "Wilson",
+      "curve_intervals": "pointwise",
+      "references": {
+        "euclidean_first_order": "SGD",
+        "euclidean_zero_order": "SPSA",
+        "simplex": "ProjectedGradient",
+        "manifold": "RiemannianSGD"
+      },
+      "failure_criterion": "nonfinite arithmetic or decision norm > 1e12",
+      "feasibility_tolerance": 1e-06,
+      "metrics_protocol": "metrics_v2",
+      "privacy_protocol": "local_series_v2"
+    },
+    "specification_sha256": "07615aa0be94b7e684e384b09fd7b077afc327b6dfce4178924ae1f483ae2a41",
+    "profile": {
+      "name": "standard",
+      "budget": 4000,
+      "seeds": [
+        10001,
+        10002,
+        10003,
+        10004,
+        10005,
+        10006,
+        10007,
+        10008,
+        10009,
+        10010,
+        10011,
+        10012,
+        10013,
+        10014,
+        10015,
+        10016,
+        10017,
+        10018,
+        10019,
+        10020,
+        10021,
+        10022,
+        10023,
+        10024,
+        10025,
+        10026,
+        10027,
+        10028,
+        10029,
+        10030,
+        10031,
+        10032,
+        10033,
+        10034,
+        10035,
+        10036,
+        10037,
+        10038,
+        10039,
+        10040,
+        10041,
+        10042,
+        10043,
+        10044,
+        10045,
+        10046,
+        10047,
+        10048,
+        10049,
+        10050
+      ],
+      "bootstrap": 10000,
+      "curve_points": 61
+    },
+    "methods": [
+      {
+        "name": "SGD",
+        "oracle": "first-order",
+        "geometries": [
+          "euclidean"
+        ],
+        "parameters": {
+          "lr": 0.1
+        },
+        "implementation": "wind060.SGD.v1",
+        "rng_key": "wind060.SGD.v1",
+        "source": "https://doi.org/10.1214/aoms/1177729586",
+        "variant": "constant-step stochastic gradient",
+        "implementation_version": 1
+      },
+      {
+        "name": "PolyakRuppertSGD",
+        "oracle": "first-order",
+        "geometries": [
+          "euclidean"
+        ],
+        "parameters": {
+          "lr": 0.1
+        },
+        "implementation": "wind060.PolyakRuppertSGD.v1",
+        "rng_key": "wind060.PolyakRuppertSGD.v1",
+        "source": "https://doi.org/10.1137/0330046",
+        "variant": "raw SGD lr*t^-0.75; mean of updated iterates; no burn-in",
+        "implementation_version": 1
+      },
+      {
+        "name": "HeavyBall",
+        "oracle": "first-order",
+        "geometries": [
+          "euclidean"
+        ],
+        "parameters": {
+          "lr": 0.1,
+          "beta": 0.9
+        },
+        "implementation": "wind060.HeavyBall.v1",
+        "rng_key": "wind060.HeavyBall.v1",
+        "source": "https://doi.org/10.1016/0041-5553(64)90137-5",
+        "variant": "constant momentum; zero initial velocity",
+        "implementation_version": 1
+      },
+      {
+        "name": "Nesterov",
+        "oracle": "first-order",
+        "geometries": [
+          "euclidean"
+        ],
+        "parameters": {
+          "lr": 0.05,
+          "beta": 0.9
+        },
+        "implementation": "wind060.Nesterov.v1",
+        "rng_key": "wind060.Nesterov.v1",
+        "source": "https://proceedings.mlr.press/v28/sutskever13.pdf",
+        "variant": "constant-momentum lookahead, equations 3-4",
+        "implementation_version": 1
+      },
+      {
+        "name": "Adam",
+        "oracle": "first-order",
+        "geometries": [
+          "euclidean"
+        ],
+        "parameters": {
+          "lr": 0.001,
+          "beta1": 0.9,
+          "beta2": 0.999,
+          "eps": 1e-08
+        },
+        "implementation": "wind060.Adam.v1",
+        "rng_key": "wind060.Adam.v1",
+        "source": "https://arxiv.org/abs/1412.6980",
+        "variant": "Algorithm 1; both bias corrections",
+        "implementation_version": 1
+      },
+      {
+        "name": "AdamW",
+        "oracle": "first-order",
+        "geometries": [
+          "euclidean"
+        ],
+        "parameters": {
+          "lr": 0.001,
+          "beta1": 0.9,
+          "beta2": 0.999,
+          "eps": 1e-08,
+          "decay": 0.01
+        },
+        "implementation": "wind060.AdamW.v1",
+        "rng_key": "wind060.AdamW.v1",
+        "source": "https://arxiv.org/abs/1711.05101",
+        "variant": "Algorithm 2; decoupled decay; constant schedule",
+        "implementation_version": 1
+      },
+      {
+        "name": "AMSGrad",
+        "oracle": "first-order",
+        "geometries": [
+          "euclidean"
+        ],
+        "parameters": {
+          "lr": 0.001,
+          "beta1": 0.9,
+          "beta2": 0.999,
+          "eps": 1e-08
+        },
+        "implementation": "wind060.AMSGrad.v1",
+        "rng_key": "wind060.AMSGrad.v1",
+        "source": "https://arxiv.org/abs/1904.09237",
+        "variant": "Algorithm 2 raw moments; constant lr; epsilon outside sqrt",
+        "implementation_version": 1
+      },
+      {
+        "name": "SignSGD",
+        "oracle": "first-order",
+        "geometries": [
+          "euclidean"
+        ],
+        "parameters": {
+          "lr": 0.05
+        },
+        "implementation": "wind060.SignSGD.v1",
+        "rng_key": "wind060.SignSGD.v1",
+        "source": "https://proceedings.mlr.press/v80/bernstein18a.html",
+        "variant": "single-worker sign of supplied stochastic gradient",
+        "implementation_version": 1
+      },
+      {
+        "name": "ProxSGD",
+        "oracle": "first-order",
+        "geometries": [
+          "euclidean"
+        ],
+        "parameters": {
+          "lr": 0.1,
+          "lam": 0.01
+        },
+        "implementation": "wind060.ProxSGD.v1",
+        "rng_key": "wind060.ProxSGD.v1",
+        "source": "https://doi.org/10.1137/080716542",
+        "variant": "Euclidean forward-backward step with exact L1 prox",
+        "implementation_version": 1
+      },
+      {
+        "name": "RDA",
+        "oracle": "first-order",
+        "geometries": [
+          "euclidean"
+        ],
+        "parameters": {
+          "lr": 0.1,
+          "lam": 0.01
+        },
+        "implementation": "wind060.RDA.v1",
+        "rng_key": "wind060.RDA.v1",
+        "source": "https://www.jmlr.org/papers/v11/xiao10a.html",
+        "variant": "Algorithm 1; quadratic prox; beta_t=sqrt(t)/lr; x0=0; L1",
+        "implementation_version": 1
+      },
+      {
+        "name": "SPSA",
+        "oracle": "zero-order",
+        "geometries": [
+          "euclidean"
+        ],
+        "parameters": {
+          "alpha": 0.005,
+          "beta": 0.1
+        },
+        "implementation": "wind.SPSA.normalized_tracking.v2",
+        "rng_key": "wind.SPSA.normalized_tracking.v2",
+        "source": "https://lib.physcon.ru/file?id=f7df197d2483",
+        "variant": "Eq.7 SPSA component; normalized Bernoulli; no d factor; minus-plus; one pair",
+        "implementation_version": 2
+      },
+      {
+        "name": "KieferWolfowitz",
+        "oracle": "zero-order",
+        "geometries": [
+          "euclidean"
+        ],
+        "parameters": {
+          "lr": 0.02,
+          "h": 0.0001
+        },
+        "implementation": "wind060.CoordinateFiniteDifferenceSGD.v1",
+        "rng_key": "wind060.CoordinateFiniteDifferenceSGD.v1",
+        "source": "https://doi.org/10.1214/aoms/1177729392",
+        "variant": "central coordinate differences; constant lr/h; 2d queries",
+        "implementation_version": 1
+      },
+      {
+        "name": "GaussianZOSGD",
+        "oracle": "zero-order",
+        "geometries": [
+          "euclidean"
+        ],
+        "parameters": {
+          "lr": 0.005,
+          "h": 0.01,
+          "m": 1
+        },
+        "implementation": "wind060.GaussianZOSGD.v1",
+        "rng_key": "wind060.GaussianZOSGD.v1",
+        "source": "https://doi.org/10.1007/s10208-015-9296-2",
+        "variant": "symmetric Gaussian smoothing estimator; m-pair mean; no d multiplier",
+        "implementation_version": 1
+      },
+      {
+        "name": "SphericalZOSGD",
+        "oracle": "zero-order",
+        "geometries": [
+          "euclidean"
+        ],
+        "parameters": {
+          "lr": 0.005,
+          "h": 0.01,
+          "m": 1
+        },
+        "implementation": "wind060.SphericalZOSGD.v1",
+        "rng_key": "wind060.SphericalZOSGD.v1",
+        "source": "https://www.jmlr.org/papers/v18/16-632.html",
+        "variant": "symmetric sphere estimator; d multiplier; m independent pairs",
+        "implementation_version": 1
+      },
+      {
+        "name": "ExponentiatedGradient",
+        "oracle": "first-order",
+        "geometries": [
+          "simplex"
+        ],
+        "parameters": {
+          "lr": 0.1
+        },
+        "implementation": "wind060.ExponentiatedGradient.v1",
+        "rng_key": "wind060.ExponentiatedGradient.v1",
+        "source": "https://www.tau.ac.il/~becka/3.pdf",
+        "variant": "entropic mirror descent; invariant zero support; persistent log-space weights",
+        "implementation_version": 1
+      },
+      {
+        "name": "ProjectedGradient",
+        "oracle": "first-order",
+        "geometries": [
+          "simplex"
+        ],
+        "parameters": {
+          "lr": 0.1
+        },
+        "implementation": "wind060.ProjectedGradient.v1",
+        "rng_key": "wind060.ProjectedGradient.v1",
+        "source": "https://icml.cc/Conferences/2008/papers/361.pdf",
+        "variant": "Euclidean gradient step and exact simplex projection",
+        "implementation_version": 1
+      },
+      {
+        "name": "RiemannianSGD",
+        "oracle": "first-order",
+        "geometries": [
+          "stiefel",
+          "grassmann"
+        ],
+        "parameters": {
+          "lr": 0.1
+        },
+        "implementation": "wind060.RiemannianSGD.v1",
+        "rng_key": "wind060.RiemannianSGD.v1",
+        "source": "https://sites.uclouvain.be/absil/amsbook/",
+        "variant": "embedded Euclidean tangent projection and polar retraction",
+        "implementation_version": 1
+      },
+      {
+        "name": "AdaGrad",
+        "oracle": "first-order",
+        "geometries": [
+          "euclidean"
+        ],
+        "parameters": {
+          "lr": 0.1,
+          "eps": 1e-08
+        },
+        "implementation": "wind.AdaGrad.v1",
+        "rng_key": "wind.AdaGrad.v1",
+        "source": "https://www.jmlr.org/papers/volume12/duchi11a/duchi11a.pdf",
+        "variant": "diagonal accumulated squares; epsilon outside sqrt; no forgetting",
+        "implementation_version": 1
+      },
+      {
+        "name": "OnePointSPSA",
+        "oracle": "zero-order",
+        "geometries": [
+          "euclidean"
+        ],
+        "parameters": {
+          "lr": 0.005,
+          "r": 0.1
+        },
+        "implementation": "wind.OnePointSPSA.v1",
+        "rng_key": "wind.OnePointSPSA.v1",
+        "source": "https://www.jhuapl.edu/SPSA/PDF-SPSA/automatica97_one_measSPSA.pdf",
+        "variant": "one fresh measurement; unnormalized Bernoulli; no baseline",
+        "implementation_version": 1
+      },
+      {
+        "name": "ZOSignSGD",
+        "oracle": "zero-order",
+        "geometries": [
+          "euclidean"
+        ],
+        "parameters": {
+          "lr": 0.005,
+          "r": 0.01,
+          "m": 1
+        },
+        "implementation": "wind.ZOSignSGD.sphere_forward.v1",
+        "rng_key": "wind.ZOSignSGD.sphere_forward.v1",
+        "source": "https://openreview.net/references/pdf?id=SJJUQwctQ",
+        "variant": "Eq.3 sphere forward differences; fresh shared baseline; sign after mean",
+        "implementation_version": 1
+      },
+      {
+        "name": "RandomSearch",
+        "oracle": "zero-order",
+        "geometries": [
+          "euclidean"
+        ],
+        "parameters": {
+          "sigma": 0.1
+        },
+        "implementation": "wind.RandomSearch.fresh_comparison.v1",
+        "rng_key": "wind.RandomSearch.fresh_comparison.v1",
+        "source": "https://www.mathnet.ru/eng/at11288",
+        "variant": "fresh-comparison tracking adaptation; Gaussian sigma/sqrt(d); randomized query order",
+        "implementation_version": 1
+      },
+      {
+        "name": "AcceleratedSPSA",
+        "oracle": "zero-order",
+        "geometries": [
+          "euclidean"
+        ],
+        "parameters": {
+          "h": 0.005,
+          "beta": 0.1,
+          "a": 0.1,
+          "delta": 1.05
+        },
+        "implementation": "wind.AcceleratedSPSA.constant.v1",
+        "rng_key": "wind.AcceleratedSPSA.constant.v1",
+        "source": "https://lib.physcon.ru/file?id=f7df197d2483",
+        "variant": "Eq.8 structure with constant coefficients; normalized Bernoulli; no theorem claim",
+        "implementation_version": 1
+      }
+    ],
+    "rng_protocol": "named_streams_v2; display labels are not seed inputs",
+    "statistics": "run-level percentile bootstrap, 95% individual intervals; paired differences within task/oracle; Wilson failure intervals; no significance claims",
+    "failure_rule": "nonfinite arithmetic or decision norm > 1e12; failed runs retained, means conditional on success",
+    "recovery_rule": {
+      "radius": 0.2,
+      "window": 400,
+      "consecutive_queries": 20,
+      "unrecovered": "restricted time equals window",
+      "time_convention": "queries after change including the confirming observation"
+    }
+  },
+  "paper": {
+    "experiment_protocol": "paper_tracking_v4",
+    "profile": {
+      "name": "paper",
+      "seeds": [
+        1001,
+        1002,
+        1003,
+        1004,
+        1005,
+        1006,
+        1007,
+        1008,
+        1009,
+        1010,
+        1011,
+        1012,
+        1013,
+        1014,
+        1015,
+        1016,
+        1017,
+        1018,
+        1019,
+        1020,
+        1021,
+        1022,
+        1023,
+        1024,
+        1025,
+        1026,
+        1027,
+        1028,
+        1029,
+        1030
+      ],
+      "calibration_steps": 1500,
+      "memory_steps": 2000,
+      "zero_order_budget": 10000,
+      "zero_order_tuning_budget": 2000,
+      "geometry_steps": 1000,
+      "bootstrap_repetitions": 2000,
+      "curve_points": 201
+    },
+    "selected_studies": [
+      "calibration",
+      "memory",
+      "zeroth",
+      "geometry",
+      "dimension"
+    ],
+    "memory_optimizers": {
+      "SGD": {
+        "name": "SGD",
+        "class_name": "SGD",
+        "module": "wind_benchmark.algorithms.optimizers",
+        "hyperparameters": {
+          "lr": 0.05
+        },
+        "oracle_type": "first-order",
+        "query_cost_per_step": 1,
+        "memory_complexity": "O(d)",
+        "implementation_id": "wind060.SGD.v1",
+        "update_schedule": "one-gradient-per-update",
+        "source": "https://doi.org/10.1214/aoms/1177729586",
+        "variant": "constant-step stochastic gradient",
+        "implementation_version": 1,
+        "rng_stream_id": "wind060.SGD.v1"
+      },
+      "HeavyBall": {
+        "name": "HeavyBall",
+        "class_name": "HeavyBall",
+        "module": "wind_benchmark.algorithms.optimizers",
+        "hyperparameters": {
+          "lr": 0.05,
+          "beta": 0.9
+        },
+        "oracle_type": "first-order",
+        "query_cost_per_step": 1,
+        "memory_complexity": "O(d)",
+        "implementation_id": "wind060.HeavyBall.v1",
+        "update_schedule": "one-gradient-per-update",
+        "source": "https://doi.org/10.1016/0041-5553(64)90137-5",
+        "variant": "constant momentum; zero initial velocity",
+        "implementation_version": 1,
+        "rng_stream_id": "wind060.HeavyBall.v1"
+      },
+      "Nesterov": {
+        "name": "Nesterov",
+        "class_name": "Nesterov",
+        "module": "wind_benchmark.algorithms.optimizers",
+        "hyperparameters": {
+          "lr": 0.05,
+          "beta": 0.9
+        },
+        "oracle_type": "first-order",
+        "query_cost_per_step": 1,
+        "memory_complexity": "O(d)",
+        "implementation_id": "wind060.Nesterov.v1",
+        "update_schedule": "one-gradient-at-lookahead-per-update",
+        "source": "https://proceedings.mlr.press/v28/sutskever13.pdf",
+        "variant": "constant-momentum lookahead, equations 3-4",
+        "implementation_version": 1,
+        "rng_stream_id": "wind060.Nesterov.v1"
+      },
+      "Adam": {
+        "name": "Adam",
+        "class_name": "Adam",
+        "module": "wind_benchmark.algorithms.optimizers",
+        "hyperparameters": {
+          "lr": 0.02,
+          "beta1": 0.9,
+          "beta2": 0.999,
+          "eps": 1e-08
+        },
+        "oracle_type": "first-order",
+        "query_cost_per_step": 1,
+        "memory_complexity": "O(d)",
+        "implementation_id": "wind060.Adam.v1",
+        "update_schedule": "one-gradient-per-update",
+        "source": "https://arxiv.org/abs/1412.6980",
+        "variant": "Algorithm 1; both bias corrections",
+        "implementation_version": 1,
+        "rng_stream_id": "wind060.Adam.v1"
+      },
+      "AMSGrad": {
+        "name": "AMSGrad",
+        "class_name": "AMSGrad",
+        "module": "wind_benchmark.algorithms.optimizers",
+        "hyperparameters": {
+          "lr": 0.02,
+          "beta1": 0.9,
+          "beta2": 0.999,
+          "eps": 1e-08
+        },
+        "oracle_type": "first-order",
+        "query_cost_per_step": 1,
+        "memory_complexity": "O(d)",
+        "implementation_id": "wind060.AMSGrad.v1",
+        "update_schedule": "one-gradient-per-update",
+        "source": "https://arxiv.org/abs/1904.09237",
+        "variant": "Algorithm 2 raw moments; constant lr; epsilon outside sqrt",
+        "implementation_version": 1,
+        "rng_stream_id": "wind060.AMSGrad.v1"
+      },
+      "AdaGrad": {
+        "name": "AdaGrad",
+        "class_name": "AdaGrad",
+        "module": "wind_benchmark.algorithms.optimizers",
+        "hyperparameters": {
+          "lr": 0.1,
+          "eps": 1e-08
+        },
+        "oracle_type": "first-order",
+        "query_cost_per_step": 1,
+        "memory_complexity": "O(d)",
+        "implementation_id": "wind.AdaGrad.v1",
+        "update_schedule": "one-gradient-per-update",
+        "source": "https://www.jmlr.org/papers/volume12/duchi11a/duchi11a.pdf",
+        "variant": "diagonal accumulated squares; epsilon outside sqrt; no forgetting",
+        "implementation_version": 1,
+        "rng_stream_id": "wind.AdaGrad.v1"
+      }
+    },
+    "zero_order_optimizers": [
+      {
+        "name": "FirstOrderReference",
+        "family": "first_order",
+        "directions": 1,
+        "catalog_name": "SGD",
+        "implementation_id": "wind060.SGD.v1",
+        "implementation_version": 1,
+        "rng_stream_id": "paper_tracking_v3:first_order:m1",
+        "source": "https://doi.org/10.1214/aoms/1177729586",
+        "variant": "constant-step stochastic gradient",
+        "parameters": "per-study selected_hyperparameters.json; FO reference fixed lr=0.04"
+      },
+      {
+        "name": "SPSA",
+        "family": "spsa",
+        "directions": 1,
+        "catalog_name": "SPSA",
+        "implementation_id": "wind.SPSA.normalized_tracking.v2",
+        "implementation_version": 2,
+        "rng_stream_id": "paper:spsa:normalized_tracking:v2",
+        "source": "https://lib.physcon.ru/file?id=f7df197d2483",
+        "variant": "Eq.7 SPSA component; normalized Bernoulli; no d factor; minus-plus; one pair",
+        "parameters": "per-study selected_hyperparameters.json; FO reference fixed lr=0.04"
+      },
+      {
+        "name": "SphericalZOSGD-m1",
+        "family": "spherical",
+        "directions": 1,
+        "catalog_name": "SphericalZOSGD",
+        "implementation_id": "wind060.SphericalZOSGD.v1",
+        "implementation_version": 1,
+        "rng_stream_id": "paper_tracking_v3:spherical:m1",
+        "source": "https://www.jmlr.org/papers/v18/16-632.html",
+        "variant": "symmetric sphere estimator; d multiplier; m independent pairs",
+        "parameters": "per-study selected_hyperparameters.json; FO reference fixed lr=0.04"
+      },
+      {
+        "name": "SphericalZOSGD-m5",
+        "family": "spherical",
+        "directions": 5,
+        "catalog_name": "SphericalZOSGD",
+        "implementation_id": "wind060.SphericalZOSGD.v1",
+        "implementation_version": 1,
+        "rng_stream_id": "paper_tracking_v3:spherical:m5",
+        "source": "https://www.jmlr.org/papers/v18/16-632.html",
+        "variant": "symmetric sphere estimator; d multiplier; m independent pairs",
+        "parameters": "per-study selected_hyperparameters.json; FO reference fixed lr=0.04"
+      },
+      {
+        "name": "SphericalZOSGD-m20",
+        "family": "spherical",
+        "directions": 20,
+        "catalog_name": "SphericalZOSGD",
+        "implementation_id": "wind060.SphericalZOSGD.v1",
+        "implementation_version": 1,
+        "rng_stream_id": "paper_tracking_v3:spherical:m20",
+        "source": "https://www.jmlr.org/papers/v18/16-632.html",
+        "variant": "symmetric sphere estimator; d multiplier; m independent pairs",
+        "parameters": "per-study selected_hyperparameters.json; FO reference fixed lr=0.04"
+      },
+      {
+        "name": "KieferWolfowitz",
+        "family": "coordinate",
+        "directions": 1,
+        "catalog_name": "KieferWolfowitz",
+        "implementation_id": "wind060.CoordinateFiniteDifferenceSGD.v1",
+        "implementation_version": 1,
+        "rng_stream_id": "paper_tracking_v3:coordinate:m1",
+        "source": "https://doi.org/10.1214/aoms/1177729392",
+        "variant": "central coordinate differences; constant lr/h; 2d queries",
+        "parameters": "per-study selected_hyperparameters.json; FO reference fixed lr=0.04"
+      },
+      {
+        "name": "OnePointSPSA",
+        "family": "one_point",
+        "directions": 1,
+        "catalog_name": "OnePointSPSA",
+        "implementation_id": "wind.OnePointSPSA.v1",
+        "implementation_version": 1,
+        "rng_stream_id": "paper:one_point:v1",
+        "source": "https://www.jhuapl.edu/SPSA/PDF-SPSA/automatica97_one_measSPSA.pdf",
+        "variant": "one fresh measurement; unnormalized Bernoulli; no baseline",
+        "parameters": "per-study selected_hyperparameters.json; FO reference fixed lr=0.04"
+      },
+      {
+        "name": "ZOSignSGD",
+        "family": "zo_sign",
+        "directions": 1,
+        "catalog_name": "ZOSignSGD",
+        "implementation_id": "wind.ZOSignSGD.sphere_forward.v1",
+        "implementation_version": 1,
+        "rng_stream_id": "paper:zo_sign:v1",
+        "source": "https://openreview.net/references/pdf?id=SJJUQwctQ",
+        "variant": "Eq.3 sphere forward differences; fresh shared baseline; sign after mean",
+        "parameters": "per-study selected_hyperparameters.json; FO reference fixed lr=0.04"
+      },
+      {
+        "name": "AcceleratedSPSA",
+        "family": "accelerated",
+        "directions": 1,
+        "catalog_name": "AcceleratedSPSA",
+        "implementation_id": "wind.AcceleratedSPSA.constant.v1",
+        "implementation_version": 1,
+        "rng_stream_id": "paper:accelerated:constant:v1",
+        "source": "https://lib.physcon.ru/file?id=f7df197d2483",
+        "variant": "Eq.8 structure with constant coefficients; normalized Bernoulli; no theorem claim",
+        "parameters": "per-study selected_hyperparameters.json; FO reference fixed lr=0.04"
+      },
+      {
+        "name": "RandomSearch",
+        "family": "random_search",
+        "directions": 1,
+        "catalog_name": "RandomSearch",
+        "implementation_id": "wind.RandomSearch.fresh_comparison.v1",
+        "implementation_version": 1,
+        "rng_stream_id": "paper:random_search:fresh:v1",
+        "source": "https://www.mathnet.ru/eng/at11288",
+        "variant": "fresh-comparison tracking adaptation; Gaussian sigma/sqrt(d); randomized query order",
+        "parameters": "per-study selected_hyperparameters.json; FO reference fixed lr=0.04"
+      }
+    ],
+    "generator_rng_id": "paper_tracking_v3",
+    "tuning_protocol": "paper_zo_equal_budget_v1",
+    "gradient_diagnostics": "estimation point versus clean gradient at post-update query tick; RandomSearch not applicable"
+  },
+  "rl": {
+    "protocol": "rl_transfer_v3",
+    "profile": {
+      "name": "paper",
+      "pretrain_episodes": 2000,
+      "fine_tune_episodes": 200,
+      "train_horizon": 160,
+      "transfer_horizon": 300,
+      "evaluation_seeds": 30,
+      "fine_tune_checkpoints": [
+        0,
+        10,
+        50,
+        100,
+        200
+      ],
+      "train_dimensions": [
+        4,
+        6,
+        8
+      ],
+      "transfer_dimension": 12,
+      "training_seeds": 10
+    },
+    "root_seed": 20261112,
+    "statistics": "crossed training-seed/workload bootstrap, paired arms and checkpoints; 2000 resamples",
+    "observation": "five continuous public history features; Q discretizes, PPO does not",
+    "actions": [
+      [
+        0.02,
+        "explore"
+      ],
+      [
+        0.02,
+        "repeat"
+      ],
+      [
+        0.02,
+        "reverse"
+      ],
+      [
+        0.06,
+        "explore"
+      ],
+      [
+        0.06,
+        "repeat"
+      ],
+      [
+        0.06,
+        "reverse"
+      ],
+      [
+        0.15,
+        "explore"
+      ],
+      [
+        0.15,
+        "repeat"
+      ],
+      [
+        0.15,
+        "reverse"
+      ],
+      [
+        0.3,
+        "explore"
+      ],
+      [
+        0.3,
+        "repeat"
+      ],
+      [
+        0.3,
+        "reverse"
+      ]
+    ],
+    "algorithm_rng_ids": {
+      "QLearning": 1001,
+      "PPO": 1002
+    },
+    "condition_rng_ids": {
+      "curriculum": 101,
+      "stationary_only": 202,
+      "no_pretraining": 303
+    },
+    "q_learning": {
+      "learning_rate": 0.1,
+      "discount": 0.95,
+      "exploration": 0.2,
+      "td_clipping": false,
+      "bins": [
+        [
+          0.04,
+          0.12,
+          0.3
+        ],
+        [
+          -0.3,
+          0.05,
+          0.4
+        ],
+        [
+          -0.3,
+          0.05,
+          0.4
+        ],
+        [
+          -0.4,
+          0.2,
+          0.7
+        ],
+        [
+          0.2,
+          0.7
+        ]
+      ],
+      "initial_prior": "-.8 - 2*action_magnitude"
+    },
+    "ppo": {
+      "library": "Stable-Baselines3",
+      "version": "2.9.2",
+      "device": "cpu",
+      "n_envs": 1,
+      "net_arch": [
+        64,
+        64
+      ],
+      "activation": "Tanh",
+      "learning_rate": 0.0003,
+      "gamma": 0.95,
+      "gae_lambda": 0.95,
+      "n_steps": 1000,
+      "batch_size": 100,
+      "n_epochs": 10,
+      "clip_range": 0.2,
+      "ent_coef": 0.0,
+      "vf_coef": 0.5,
+      "max_grad_norm": 0.5,
+      "normalize_advantage": true,
+      "reward_normalization": false,
+      "value_clipping": false
+    },
+    "interaction_accounting": "H transitions plus one reset value query per complete episode",
+    "evaluation_policy": "deterministic predict; no learning or checkpoint selection",
+    "training_scenarios": [
+      "stationary",
+      "linear",
+      "cyclic",
+      "jump",
+      "random_walk"
+    ],
+    "training_noise_cycle": [
+      "none",
+      "gaussian",
+      "correlated"
+    ],
+    "transfer_noise": "heavy_tailed",
+    "seed_derivation": "rl_transfer_v3 / phase / explicit algorithm and condition IDs / replicate",
+    "reward": "10*(-next_noisy_value + 2*(current_noisy_value-next_noisy_value) - .02*L1_reallocation)",
+    "transfer": "weights/Q-table only; reset optimizer at transfer; preserve optimizer across checkpoints"
+  }
+}

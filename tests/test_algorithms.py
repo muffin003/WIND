@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import Mock
 
 # Core components
-from wind_benchmark.core import (
+from wind_benchmark.core.environment import (
     StationaryDrift,
     LinearDrift,
     RandomWalkDrift,
@@ -32,7 +32,7 @@ from wind_benchmark.core import (
     make_landscape,
     make_noise,
 )
-from wind_benchmark.oracle import (
+from wind_benchmark.core.oracle import (
     FirstOrderOracle,
     ZeroOrderOracle,
     HybridOracle,
@@ -42,7 +42,7 @@ from wind_benchmark.oracle import (
     OracleProtocol,
     make_oracle,
 )
-from wind_benchmark.metrics import (
+from wind_benchmark.core.metrics import (
     MetricsCollection,
     TrackingErrorMetric,
     LyapunovMetric,
@@ -51,7 +51,7 @@ from wind_benchmark.metrics import (
     InstantaneousLossMetric,
     AdaptivityMetric,
 )
-from wind_benchmark.benchmark import (
+from wind_benchmark.core.runner import (
     BenchmarkRunner,
     ExperimentResult,
     OptimizerInfo,
@@ -120,7 +120,7 @@ def test_landscape_gradient_at_optimum_is_zero():
 # ============================================================================
 # 2. Temporal consistency
 # ============================================================================
-def test_protocol_a_locking_mechanism():
+def test_protocol_a_locking_mechanism(trusted_core_unit):
     """
     Environment must refuse advancement while Oracle is active.
 
@@ -151,7 +151,7 @@ def test_protocol_a_locking_mechanism():
     env.step()  # Should succeed now
 
 
-def test_temporal_consistency_same_theta_for_multiple_queries():
+def test_temporal_consistency_same_theta_for_multiple_queries(trusted_core_unit):
     """
     All queries within same step must observe identical theta_t.
 
@@ -194,7 +194,7 @@ def test_temporal_consistency_same_theta_for_multiple_queries():
 # ============================================================================
 # 3. INFORMATION BARRIER (No theta leakage)
 # ============================================================================
-def test_observation_information_barrier():
+def test_observation_information_barrier(trusted_core_unit):
     """
     Observation must NEVER expose theta_t directly to optimizer.
 
@@ -222,7 +222,8 @@ def test_observation_information_barrier():
 
     # Verify original query point immutability
     x_original_copy = x_original.copy()
-    obs.x[0] = 999.0  # Modify the COPY inside Observation
+    with pytest.raises(ValueError):
+        obs.x[0] = 999.0
 
     # Original array MUST remain unchanged (prevents reference leakage)
     assert np.array_equal(
@@ -230,7 +231,7 @@ def test_observation_information_barrier():
     ), "Original query point was mutated through Observation.x!"
 
 
-def test_blind_value_mode_hides_function_value():
+def test_blind_value_mode_hides_function_value(trusted_core_unit):
     """
     Strict first-order mode must return value=None.
 
@@ -322,7 +323,7 @@ def test_normalized_lyapunov_drift_invariance():
 # ============================================================================
 # 5. DYNAMIC REGRET INVARIANT
 # ============================================================================
-def test_dynamic_regret_optimum_value_consistency():
+def test_dynamic_regret_optimum_value_consistency(trusted_core_unit):
     """
     Regret calculation must use f_t(theta_t) computed with SAME theta_t as f_t(x_t).
 
@@ -343,8 +344,11 @@ def test_dynamic_regret_optimum_value_consistency():
     obs = oracle.query(x)
     oracle.end_step()
 
-    # Critical invariant: optimum_value MUST be 0 (within tolerance)
-    assert abs(obs.optimum_value) < 1e-8
+    # Reference values stay in the evaluator channel, not in public feedback.
+    assert not hasattr(obs, "optimum_value")
+    evaluation = oracle._take_evaluation()
+    assert abs(evaluation.optimum_value) < 1e-8
+    np.testing.assert_array_equal(evaluation.theta, theta_t0)
 
 
 # ============================================================================
@@ -367,6 +371,19 @@ class MockOptimizer(OptimizerProtocol):
 
     def reset(self) -> None:
         pass
+
+    query_cost_per_step = 1
+
+    def initialize(self, x0, rng, task_spec):
+        self.x = x0.copy()
+        self.rng = rng
+
+    def advance(self, client):
+        from wind_benchmark.algorithms.protocol import AdvanceResult
+
+        obs = client.query(self.x)
+        self.x = self.step(obs)
+        return AdvanceResult(self.x, True, 1)
 
 
 def test_benchmark_runner_full_execution():
@@ -471,7 +488,7 @@ def test_batch_runner_statistical_aggregation():
 # ============================================================================
 # 7. OFFLINE ORACLE (Deterministic replay)
 # ============================================================================
-def test_offline_oracle_reproducibility():
+def test_offline_oracle_reproducibility(trusted_core_unit):
     """
     OfflineOracle must replay identical theta_t sequence across runs.
 
@@ -558,7 +575,7 @@ def test_metrics_collection_rho_validation():
         MetricsCollection(invalid_metrics)
 
 
-def test_oracle_query_outside_active_step():
+def test_oracle_query_outside_active_step(trusted_core_unit):
     """
     Querying Oracle outside active step must raise clear error.
 
@@ -623,7 +640,7 @@ def test_experiment_result_json_export():
             exported = json.load(f)
 
         # Verify critical reproducibility fields
-        assert exported["_format"] == "sthrd-v1.0"
+        assert exported["_format"] == "wind-result-v2"
         assert exported["_has_ground_truth"] is True
         assert "optimizer_info" in exported
         assert "environment_config" in exported
@@ -930,7 +947,7 @@ def test_simplex_landscape_invariant_and_projection():
 # ============================================================================
 # 13. ORACLE / METRIC SPEC-CONFORMANCE (Tables 1, 5)
 # ============================================================================
-def test_first_order_oracle_blind_by_default():
+def test_first_order_oracle_blind_by_default(trusted_core_unit):
     """
     Table 1: a pure First-Order oracle exposes ONLY the gradient by default
     (value=None). Opt in with blind_value=False to also get value.
@@ -952,7 +969,7 @@ def test_first_order_oracle_blind_by_default():
     assert obs2.value is not None
 
 
-def test_hybrid_oracle_returns_value_and_grad():
+def test_hybrid_oracle_returns_value_and_grad(trusted_core_unit):
     """
     Table 1 (Hybrid): simultaneous value+grad with independent noise sources.
     """
@@ -971,7 +988,7 @@ def test_hybrid_oracle_returns_value_and_grad():
     assert obs.mode == "hybrid"
 
 
-def test_scheduled_oracle_time_multiplexes_modes():
+def test_scheduled_oracle_time_multiplexes_modes(trusted_core_unit):
     """
     ScheduledOracle (renamed from the old HybridOracle) alternates FO/ZO by schedule:
     FO phase returns value+grad, ZO phase returns value only (grad=None).
@@ -1131,6 +1148,12 @@ def test_optimizer_info_uses_explicit_oracle_type():
             return observation.x
 
         def reset(self):
+            pass
+
+        def initialize(self, x0, rng, task_spec):
+            pass
+
+        def advance(self, client):
             pass
 
     info = OptimizerInfo.from_optimizer(ExplicitOpt())
